@@ -1,11 +1,6 @@
 name: Release Mobile
 
 on:
-  push:
-    tags:
-      - "v*"
-      - "!v*-rc.*"
-      - "!v*-beta.*"
   workflow_dispatch: {}
 
 jobs:

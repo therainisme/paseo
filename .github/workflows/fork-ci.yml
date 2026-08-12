@@ -1,0 +1,65 @@
+name: Fork CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+  ONNXRUNTIME_NODE_INSTALL: skip
+
+jobs:
+  maintenance:
+    name: maintenance checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: node scripts/npm-retry.mjs ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verify workflow policy
+        run: node --test scripts/ci-workflow.test.mjs scripts/daemon-launch-contract.test.mjs
+
+      - name: Build server stack
+        run: npm run build:server
+
+      - name: Build Expo audio module
+        run: npm run build --workspace=@getpaseo/expo-two-way-audio
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test Pi thinking levels
+        run: npx vitest run packages/server/src/server/agent/providers/pi/agent.test.ts --bail=1
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Test file panel absolute path
+        run: >-
+          npm run test:e2e --workspace=@getpaseo/app --
+          e2e/browser/file-editing.spec.ts
+          -g "shows the full file path and keeps editor controls stable"

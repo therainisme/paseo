@@ -1,9 +1,7 @@
 name: Release iOS Beta
 
 on:
-  push:
-    tags:
-      - "v*-beta.*"
+  workflow_dispatch: {}
 
 jobs:
   build_ios:

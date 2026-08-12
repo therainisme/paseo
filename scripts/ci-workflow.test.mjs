@@ -5,8 +5,13 @@ import test from "node:test";
 
 const repoRoot = new URL("../", import.meta.url);
 const ciWorkflowPath = new URL(".github/workflows/ci.yml", repoRoot);
+const forkCiWorkflowPath = new URL(".github/workflows/fork-ci.yml", repoRoot);
 const dockerWorkflowPath = new URL(".github/workflows/docker.yml", repoRoot);
 const nixWorkflowPath = new URL(".github/workflows/nix.yml", repoRoot);
+const easReleaseWorkflowPaths = [
+  new URL("packages/app/.eas/workflows/release-mobile.yml", repoRoot),
+  new URL("packages/app/.eas/workflows/release-ios-beta.yml", repoRoot),
+];
 const filtersPath = new URL(".github/ci-paths.yml", repoRoot);
 const serverTsconfigPath = new URL("packages/server/tsconfig.server.json", repoRoot);
 const desktopPackagePath = new URL("packages/desktop/package.json", repoRoot);
@@ -32,10 +37,11 @@ const gatedCiJobs = new Map([
 ]);
 
 function jobBlocks(source) {
+  const jobsSource = source.split(/^jobs:\s*$/m)[1] ?? source;
   const jobs = new Map();
   let currentJob;
 
-  for (const line of source.split("\n")) {
+  for (const line of jobsSource.split("\n")) {
     const jobMatch = /^  ([a-z0-9-]+):\s*$/.exec(line);
     if (jobMatch) {
       currentJob = jobMatch[1];
@@ -95,6 +101,35 @@ test("gated checks are statically named jobs with real job-level gating", () => 
     for (const contract of expected.contracts ?? [expected.contract]) {
       assert.match(job, new RegExp(`needs\\.changes\\.outputs\\.${contract} != 'false'`));
     }
+  }
+});
+
+test("fork CI keeps maintenance checks focused and Docker manual-only", () => {
+  const forkCiSource = readFileSync(forkCiWorkflowPath, "utf8");
+  const forkCiTrigger = forkCiSource.split("jobs:", 1)[0];
+  const dockerSource = readFileSync(dockerWorkflowPath, "utf8");
+  const dockerTrigger = dockerSource.split("jobs:", 1)[0];
+
+  assert.match(forkCiTrigger, /^\s+push:\s*$/m);
+  assert.match(forkCiTrigger, /^\s+pull_request:\s*$/m);
+  assert.match(forkCiTrigger, /^\s+workflow_dispatch:\s*$/m);
+  assert.doesNotMatch(forkCiTrigger, /^\s+tags:\s*$/m);
+  assert.deepEqual([...jobBlocks(forkCiSource).keys()], ["maintenance"]);
+  assert.doesNotMatch(forkCiSource, /secrets\./);
+  assert.match(forkCiSource, /npm run format:check/);
+  assert.match(forkCiSource, /npm run lint/);
+  assert.match(forkCiSource, /npm run typecheck/);
+  assert.match(forkCiSource, /scripts\/ci-workflow\.test\.mjs/);
+  assert.match(forkCiSource, /providers\/pi\/agent\.test\.ts/);
+  assert.match(forkCiSource, /shows the full file path and keeps editor controls stable/);
+
+  assert.match(dockerTrigger, /^\s+workflow_dispatch:\s*$/m);
+  assert.doesNotMatch(dockerTrigger, /^\s+(push|pull_request):\s*$/m);
+
+  for (const workflowPath of easReleaseWorkflowPaths) {
+    const trigger = readFileSync(workflowPath, "utf8").split("jobs:", 1)[0];
+    assert.match(trigger, /^\s+workflow_dispatch:\s*(?:\{\})?\s*$/m);
+    assert.doesNotMatch(trigger, /^\s+(push|pull_request):\s*$/m);
   }
 });
 
@@ -250,11 +285,9 @@ test("browser and desktop tests have exclusive, directory-owned suites", () => {
   ]);
 });
 
-test("non-required Docker and Nix workflows avoid runners with workflow path filters", () => {
-  for (const workflowPath of [dockerWorkflowPath, nixWorkflowPath]) {
-    const source = readFileSync(workflowPath, "utf8");
-    const trigger = source.split("jobs:", 1)[0];
-    assert.match(trigger, /^\s+paths:\s*$/m);
-    assert.doesNotMatch(source, /dorny\/paths-filter/);
-  }
+test("non-required Nix workflow avoids runners with workflow path filters", () => {
+  const source = readFileSync(nixWorkflowPath, "utf8");
+  const trigger = source.split("jobs:", 1)[0];
+  assert.match(trigger, /^\s+paths:\s*$/m);
+  assert.doesNotMatch(source, /dorny\/paths-filter/);
 });
