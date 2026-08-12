@@ -58,8 +58,9 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium
 
-      - name: Test file panel absolute path
+      - name: Test fork UI regressions
         run: >-
           npm run test:e2e --workspace=@getpaseo/app --
           e2e/browser/file-editing.spec.ts
-          -g "shows the full file path and keeps editor controls stable"
+          e2e/browser/command-center-agent-controls.spec.ts
+          -g "shows the full file path and keeps editor controls stable|shows an existing agent's only supported thinking level"

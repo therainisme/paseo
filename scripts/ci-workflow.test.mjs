@@ -122,6 +122,7 @@ test("fork CI keeps maintenance checks focused and Docker manual-only", () => {
   assert.match(forkCiSource, /scripts\/ci-workflow\.test\.mjs/);
   assert.match(forkCiSource, /providers\/pi\/agent\.test\.ts/);
   assert.match(forkCiSource, /shows the full file path and keeps editor controls stable/);
+  assert.match(forkCiSource, /shows an existing agent's only supported thinking level/);
 
   assert.match(dockerTrigger, /^\s+workflow_dispatch:\s*$/m);
   assert.doesNotMatch(dockerTrigger, /^\s+(push|pull_request):\s*$/m);
