@@ -144,7 +144,7 @@ describe("computeNotificationPlan", () => {
     ).toEqual({ inAppRecipientIndex: null, shouldPush: true });
   });
 
-  it("falls back to push for non-error attention when no clients are present", () => {
+  it("falls back to push for eligible completed attention when no clients are present", () => {
     expect(
       computeNotificationPlan({
         allStates: [state({ lastActivityAtMs: staleAtMs })],
@@ -226,9 +226,9 @@ describe("computeNotificationPlan", () => {
 });
 
 describe("isPushEligibleAttentionReason", () => {
-  it("allows push for finished and permission but not error", () => {
+  it("allows push only for completed tasks", () => {
     expect(isPushEligibleAttentionReason("finished")).toBe(true);
-    expect(isPushEligibleAttentionReason("permission")).toBe(true);
+    expect(isPushEligibleAttentionReason("permission")).toBe(false);
     expect(isPushEligibleAttentionReason("error")).toBe(false);
   });
 });

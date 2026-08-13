@@ -6247,6 +6247,49 @@ test("onAgentAttention is not called for delegated child agents", async () => {
   expect(attentionCalls).toEqual([]);
 });
 
+test("completion attention includes the accepted turn duration", async () => {
+  const agentId = "00000000-0000-4000-8000-000000000113";
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-attention-duration-"));
+  const timestamps = [new Date("2026-08-13T12:00:00.000Z"), new Date("2026-08-13T12:02:13.000Z")];
+  const attentionCalls: Array<{
+    agentId: string;
+    provider: AgentProvider;
+    reason: "finished" | "error" | "permission";
+    durationMs: number | null;
+  }> = [];
+  const manager = new AgentManager({
+    clients: { codex: new TestAgentClient() },
+    registry: new AgentStorage(join(workdir, "agents"), logger),
+    logger,
+    idFactory: () => agentId,
+    now: () => {
+      const timestamp = timestamps.shift();
+      if (!timestamp) throw new Error("Unexpected clock read");
+      return timestamp;
+    },
+    onAgentAttention: (attention) => {
+      attentionCalls.push(attention);
+    },
+  });
+
+  const agent = await manager.createAgent(
+    { provider: "codex", cwd: workdir, title: "Timed task" },
+    undefined,
+    { workspaceId: undefined },
+  );
+
+  await manager.runAgent(agent.id, "hello");
+
+  expect(attentionCalls).toEqual([
+    {
+      agentId,
+      provider: "codex",
+      reason: "finished",
+      durationMs: 133_000,
+    },
+  ]);
+});
+
 test("clearAgentAttention on errored agent stays cleared until a new error transition", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-attention-error-"));
   const storagePath = join(workdir, "agents");

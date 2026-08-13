@@ -15,7 +15,7 @@ import type {
 import type { PersistedWorkspaceRecord, WorkspaceRegistry } from "./workspace-registry.js";
 import { asInternals, createStub } from "./test-utils/class-mocks.js";
 import { createProviderSnapshotManagerStub } from "./test-utils/session-stubs.js";
-import type { PushNotificationSender, PushPayload } from "./push/index.js";
+import type { PushNotificationSender, TaskCompletedPushNotification } from "./push/index.js";
 import type { WorkspaceAutoName } from "./workspace-auto-name.js";
 
 const wsModuleMock = vi.hoisted(() => {
@@ -48,10 +48,10 @@ vi.mock("./session.js", () => ({
 import { VoiceAssistantWebSocketServer } from "./websocket-server.js";
 
 class RecordingPushNotificationSender implements PushNotificationSender {
-  readonly sent: PushPayload[] = [];
+  readonly sent: TaskCompletedPushNotification[] = [];
 
-  async send(payload: PushPayload): Promise<void> {
-    this.sent.push(payload);
+  async send(notification: TaskCompletedPushNotification): Promise<void> {
+    this.sent.push(notification);
   }
 }
 
@@ -447,7 +447,7 @@ describe("VoiceAssistantWebSocketServer terminal attention notifications", () =>
     expect(payload.title).toBe("Terminal needs input");
   });
 
-  it("sends push notification when no clients are present", async () => {
+  it("sends only a duration for a completed terminal when no clients are present", async () => {
     const { manager, emit } = createTerminalManager();
     const { pushNotifications } = createServer(
       manager,
@@ -466,12 +466,24 @@ describe("VoiceAssistantWebSocketServer terminal attention notifications", () =>
 
     await flushAsync();
 
-    expect(pushNotifications.sent).toHaveLength(1);
-    expect(pushNotifications.sent[0]?.title).toBe("Terminal finished");
-    expect(pushNotifications.sent[0]?.data).toMatchObject({
-      serverId: "srv-test",
-      terminalId: "term-1",
-      workspaceId: "ws-1",
-    });
+    expect(pushNotifications.sent).toEqual([{ kind: "task_completed", durationMs: 15_000 }]);
+  });
+
+  it("does not remotely push terminal input details", async () => {
+    const { manager, emit } = createTerminalManager();
+    const { pushNotifications } = createServer(manager);
+
+    emit(
+      transition({
+        previousState: "working",
+        previousChangedAt: 1_000,
+        state: "attention",
+        changedAt: 15_000,
+      }),
+    );
+
+    await flushAsync();
+
+    expect(pushNotifications.sent).toEqual([]);
   });
 });

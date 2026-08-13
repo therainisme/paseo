@@ -736,12 +736,17 @@ export class VoiceAssistantWebSocketServer {
         if (!reason) {
           return;
         }
+        const durationMs =
+          reason === "finished" && event.previous?.state === "working" && event.activity
+            ? Math.max(0, event.activity.changedAt - event.previous.changedAt)
+            : null;
         void this.broadcastTerminalAttention({
           terminalId: event.terminalId,
           cwd: event.cwd,
           ...(event.workspaceId ? { workspaceId: event.workspaceId } : {}),
           terminalName: event.name,
           reason,
+          durationMs,
         }).catch((err) => {
           this.logger.warn(
             { err, terminalId: event.terminalId },
@@ -2366,6 +2371,7 @@ export class VoiceAssistantWebSocketServer {
     agentId: string;
     provider: AgentProvider;
     reason: "finished" | "error" | "permission";
+    durationMs: number | null;
   }): Promise<void> {
     const clientEntries: Array<{
       ws: WebSocketLike;
@@ -2401,14 +2407,16 @@ export class VoiceAssistantWebSocketServer {
     const plan = computeNotificationPlan({
       allStates,
       focusTarget: { kind: "agent", id: params.agentId },
-      pushEligible: isPushEligibleAttentionReason(params.reason),
+      pushEligible: isPushEligibleAttentionReason(params.reason) && params.durationMs !== null,
       nowMs,
     });
 
-    if (plan.shouldPush) {
-      void this.pushNotificationSender.send(notification).catch((err) => {
-        this.logger.warn({ err, agentId: params.agentId }, "Failed to send push notification");
-      });
+    if (plan.shouldPush && params.durationMs !== null) {
+      void this.pushNotificationSender
+        .send({ kind: "task_completed", durationMs: params.durationMs })
+        .catch((err) => {
+          this.logger.warn({ err, agentId: params.agentId }, "Failed to send push notification");
+        });
     }
 
     for (const [clientIndex, { ws }] of clientEntries.entries()) {
@@ -2455,6 +2463,7 @@ export class VoiceAssistantWebSocketServer {
     workspaceId?: string;
     terminalName: string;
     reason: TerminalAttentionReason;
+    durationMs: number | null;
   }): Promise<void> {
     const clientEntries: Array<{
       ws: WebSocketLike;
@@ -2478,25 +2487,16 @@ export class VoiceAssistantWebSocketServer {
     const plan = computeNotificationPlan({
       allStates,
       focusTarget: { kind: "terminal", id: params.terminalId },
-      pushEligible: true,
+      pushEligible: params.reason === "finished" && params.durationMs !== null,
       nowMs,
     });
 
     const title = terminalAttentionTitle(params.reason);
     const body = params.terminalName;
 
-    if (plan.shouldPush) {
+    if (plan.shouldPush && params.durationMs !== null) {
       void this.pushNotificationSender
-        .send({
-          title,
-          body,
-          data: {
-            serverId: this.serverId,
-            terminalId: params.terminalId,
-            cwd: params.cwd,
-            ...(workspaceId ? { workspaceId } : {}),
-          },
-        })
+        .send({ kind: "task_completed", durationMs: params.durationMs })
         .catch((err) => {
           this.logger.warn(
             { err, terminalId: params.terminalId },

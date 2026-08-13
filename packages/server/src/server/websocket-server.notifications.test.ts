@@ -9,7 +9,7 @@ import type { ScheduleService } from "./schedule/service.js";
 import type { CheckoutDiffManager } from "./checkout-diff-manager.js";
 import { asInternals, createStub } from "./test-utils/class-mocks.js";
 import { createProviderSnapshotManagerStub } from "./test-utils/session-stubs.js";
-import type { PushNotificationSender, PushPayload } from "./push/index.js";
+import type { PushNotificationSender, TaskCompletedPushNotification } from "./push/index.js";
 import type { WorkspaceAutoName } from "./workspace-auto-name.js";
 
 const WORKSPACE_ID = "workspace-1";
@@ -47,10 +47,9 @@ interface WebSocketServerInternals {
   sessions: Map<unknown, unknown>;
   broadcastAgentAttention(params: {
     agentId: string;
-    reason: string;
-    preview?: string;
-    providerId?: string;
-    timestamp?: string;
+    provider: "claude";
+    reason: "finished" | "error" | "permission";
+    durationMs: number | null;
   }): Promise<void>;
 }
 
@@ -74,10 +73,10 @@ function createWorkspaceAutoNameStub(): WorkspaceAutoName {
 }
 
 class RecordingPushNotificationSender implements PushNotificationSender {
-  readonly sent: PushPayload[] = [];
+  readonly sent: TaskCompletedPushNotification[] = [];
 
-  async send(payload: PushPayload): Promise<void> {
-    this.sent.push(payload);
+  async send(notification: TaskCompletedPushNotification): Promise<void> {
+    this.sent.push(notification);
   }
 }
 
@@ -215,7 +214,7 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
     vi.clearAllMocks();
   });
 
-  it("uses assistant preview text for push notifications with markdown removed", async () => {
+  it("keeps assistant preview text in-app while remote push contains only duration", async () => {
     const getLastAssistantMessage = vi.fn(
       async () => "**Done**. Updated `README.md` and [link](https://example.com).",
     );
@@ -228,25 +227,26 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
       })),
       getLastAssistantMessage,
     });
+    const ws = connectClient(server, null);
 
     await asInternals<WebSocketServerInternals>(server).broadcastAgentAttention({
       agentId: "agent-1",
       provider: "claude",
       reason: "finished",
+      durationMs: 133_000,
     });
 
-    expect(pushNotifications.sent).toEqual([
-      {
-        title: "Agent finished",
-        body: "Done. Updated README.md and link.",
-        data: {
-          serverId: "srv-test",
-          workspaceId: WORKSPACE_ID,
-          agentId: "agent-1",
-          reason: "finished",
-        },
+    expect(pushNotifications.sent).toEqual([{ kind: "task_completed", durationMs: 133_000 }]);
+    expect(readAttentionRequiredMessage(ws).notification).toEqual({
+      title: "Agent finished",
+      body: "Done. Updated README.md and link.",
+      data: {
+        serverId: "srv-test",
+        workspaceId: WORKSPACE_ID,
+        agentId: "agent-1",
+        reason: "finished",
       },
-    ]);
+    });
     expect(getLastAssistantMessage).toHaveBeenCalledWith("agent-1");
   });
 
@@ -267,6 +267,7 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
       agentId: "agent-2",
       provider: "claude",
       reason: "finished",
+      durationMs: 1_000,
     });
 
     expect(pushNotifications.sent).toHaveLength(1);
@@ -293,6 +294,7 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
       agentId: "agent-X",
       provider: "claude",
       reason: "finished",
+      durationMs: 1_000,
     });
 
     expect(readAttentionRequiredMessage(electronWs).shouldNotify).toBe(true);
@@ -300,7 +302,7 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
     expect(pushNotifications.sent).toEqual([]);
   });
 
-  it("pushes non-error attention when the only connected client has never sent a heartbeat", async () => {
+  it("pushes completed attention when the only connected client has never sent a heartbeat", async () => {
     const { server, pushNotifications } = createServer();
     const ws = connectClient(server, null);
 
@@ -308,10 +310,57 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
       agentId: "agent-no-heartbeat",
       provider: "claude",
       reason: "finished",
+      durationMs: 1_000,
     });
 
     expect(readAttentionRequiredMessage(ws).shouldNotify).toBe(false);
     expect(pushNotifications.sent).toHaveLength(1);
+  });
+
+  it("does not remotely push permission request details", async () => {
+    const { server, pushNotifications } = createServer({
+      getAgent: vi.fn(() => ({
+        workspaceId: WORKSPACE_ID,
+        pendingPermissions: new Map([
+          [
+            "permission-1",
+            {
+              id: "permission-1",
+              provider: "claude",
+              name: "Bash",
+              kind: "tool",
+              description: "Run secret deployment command",
+            },
+          ],
+        ]),
+      })),
+    });
+    const ws = connectClient(server, null);
+
+    await asInternals<WebSocketServerInternals>(server).broadcastAgentAttention({
+      agentId: "agent-permission",
+      provider: "claude",
+      reason: "permission",
+      durationMs: null,
+    });
+
+    expect(readAttentionRequiredMessage(ws).notification.body).toBe(
+      "Run secret deployment command",
+    );
+    expect(pushNotifications.sent).toEqual([]);
+  });
+
+  it("does not remotely push a completion without a trusted duration", async () => {
+    const { server, pushNotifications } = createServer();
+
+    await asInternals<WebSocketServerInternals>(server).broadcastAgentAttention({
+      agentId: "agent-no-duration",
+      provider: "claude",
+      reason: "finished",
+      durationMs: null,
+    });
+
+    expect(pushNotifications.sent).toEqual([]);
   });
 
   it("does not push error attention when the only connected client has never sent a heartbeat", async () => {
@@ -322,6 +371,7 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
       agentId: "agent-no-heartbeat",
       provider: "claude",
       reason: "error",
+      durationMs: null,
     });
 
     expect(readAttentionRequiredMessage(ws).shouldNotify).toBe(false);

@@ -3,14 +3,14 @@ import { createTestPaseoDaemon, type TestPaseoDaemon } from "./test-utils/paseo-
 import { DaemonClient } from "./test-utils/daemon-client.js";
 import type { AgentStreamEventPayload } from "@getpaseo/protocol/messages";
 import type { AgentSnapshotPayload } from "./messages.js";
-import type { PushNotificationSender, PushPayload } from "./push/index.js";
+import type { PushNotificationSender, TaskCompletedPushNotification } from "./push/index.js";
 import { PRESENCE_THRESHOLD_MS } from "./agent-attention-policy.js";
 
 class RecordingPushNotificationSender implements PushNotificationSender {
-  readonly sent: PushPayload[] = [];
+  readonly sent: TaskCompletedPushNotification[] = [];
 
-  async send(payload: PushPayload): Promise<void> {
-    this.sent.push(payload);
+  async send(notification: TaskCompletedPushNotification): Promise<void> {
+    this.sent.push(notification);
   }
 }
 
@@ -23,7 +23,7 @@ class RecordingPushNotificationSender implements PushNotificationSender {
  * Rules:
  * 1. If a present client is focused on the agent → no notification
  * 2. Otherwise, notify the most recently active present client
- * 3. If no client is present → send push for non-error attention
+ * 3. If no client is present → send push for completed tasks
  *
  * Heartbeat contains:
  * - deviceType: "web" | "mobile"

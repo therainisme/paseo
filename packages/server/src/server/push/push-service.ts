@@ -1,17 +1,15 @@
 import type pino from "pino";
 
-export interface PushPayload {
-  title: string;
-  body: string;
-  data?: Record<string, unknown>;
+export interface TaskCompletedPushNotification {
+  kind: "task_completed";
+  durationMs: number;
 }
 
 interface ExpoPushMessage {
   to: string;
   title: string;
   body: string;
-  data?: Record<string, unknown>;
-  sound?: "default";
+  sound: "default";
 }
 
 interface ExpoPushTicket {
@@ -23,6 +21,37 @@ interface ExpoPushTicket {
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const MAX_BATCH_SIZE = 100;
+
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts: string[] = [];
+
+  if (hours > 0) parts.push(`${hours} 小时`);
+  if (minutes > 0) parts.push(`${minutes} 分`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds} 秒`);
+
+  return parts.join(" ");
+}
+
+export function buildExpoPushMessages(
+  tokens: readonly string[],
+  notification: TaskCompletedPushNotification,
+): ExpoPushMessage[] {
+  if (!Number.isFinite(notification.durationMs) || notification.durationMs < 0) {
+    throw new Error("Push notification duration must be a finite non-negative number");
+  }
+
+  const body = `耗时 ${formatDuration(notification.durationMs)}`;
+  return tokens.map((token) => ({
+    to: token,
+    title: "任务已完成",
+    body,
+    sound: "default",
+  }));
+}
 
 /**
  * Service for sending Expo push notifications.
@@ -37,18 +66,12 @@ export class PushService {
     this.revokeToken = revokeToken;
   }
 
-  async sendPush(tokens: string[], payload: PushPayload): Promise<void> {
+  async sendPush(tokens: string[], notification: TaskCompletedPushNotification): Promise<void> {
     if (tokens.length === 0) {
       return;
     }
 
-    const messages: ExpoPushMessage[] = tokens.map((token) => ({
-      to: token,
-      title: payload.title,
-      body: payload.body,
-      data: payload.data,
-      sound: "default",
-    }));
+    const messages = buildExpoPushMessages(tokens, notification);
 
     // Batch tokens (max 100 per request per Expo limits)
     const batches: ExpoPushMessage[][] = [];

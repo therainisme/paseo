@@ -218,6 +218,7 @@ export type AgentAttentionCallback = (params: {
   agentId: string;
   provider: AgentProvider;
   reason: "finished" | "error" | "permission";
+  durationMs: number | null;
 }) => void;
 
 export type AgentArchivedCallback = (agentId: string) => Promise<void> | void;
@@ -276,6 +277,7 @@ export interface AgentManagerOptions {
   appendSystemPrompt?: string;
   agentStreamCoalesceWindowMs?: number;
   rescueTimeouts?: AgentManagerRescueTimeouts;
+  now?: () => Date;
   logger: Logger;
 }
 
@@ -642,6 +644,7 @@ export class AgentManager {
   private onWorkspaceStateMayHaveChanged?: (params: { cwd: string }) => void;
   private logger: Logger;
   private readonly rescueTimeouts: Required<AgentManagerRescueTimeouts>;
+  private readonly now: () => Date;
   private acceptingAgentRegistrations = true;
 
   constructor(options: AgentManagerOptions) {
@@ -650,6 +653,7 @@ export class AgentManager {
     this.durableTimelineStore = options?.durableTimelineStore;
     this.onAgentAttention = options?.onAgentAttention;
     this.onWorkspaceStateMayHaveChanged = options?.onWorkspaceStateMayHaveChanged;
+    this.now = options.now ?? (() => new Date());
     this.mcpBaseUrl = options?.mcpBaseUrl ?? null;
     this.mcpAuthToken = options?.mcpAuthToken ?? null;
     this.configurePaseoTools(options);
@@ -2085,7 +2089,7 @@ export class AgentManager {
       if (isReplacement) {
         agent.pendingReplacement = false;
       }
-      const turnStartedAt = new Date();
+      const turnStartedAt = this.now();
       pendingRun.started = true;
       pendingRun.turnId = turnId;
       agent.activeForegroundTurnId = turnId;
@@ -2165,7 +2169,11 @@ export class AgentManager {
     return streamForwarder;
   }
 
-  private finalizeForegroundTurn(agent: ActiveManagedAgent, turnId?: string): void {
+  private finalizeForegroundTurn(
+    agent: ActiveManagedAgent,
+    turnId?: string,
+    completionDurationMs: number | null = null,
+  ): void {
     const mutableAgent = agent;
     if (turnId) {
       this.runs.rememberFinalizedTurn(mutableAgent, turnId);
@@ -2205,7 +2213,7 @@ export class AgentManager {
     );
     if (!shouldHoldBusyForReplacement) {
       this.touchUpdatedAt(mutableAgent);
-      this.emitState(mutableAgent);
+      this.emitState(mutableAgent, { completionDurationMs });
     }
   }
 
@@ -3499,12 +3507,21 @@ export class AgentManager {
     }
 
     let terminalDisposition: ActiveTurnTerminalDisposition = "untracked";
+    let completionDurationMs: number | null = null;
     if (isTurnTerminalEvent(event)) {
+      const turnStartedAt = agent.activeTurnStartedAt;
       terminalDisposition = this.applyActiveTurnTerminal(
         agent,
         eventTurnId,
         options?.fromHistory === true,
       );
+      const completedCurrentTurn =
+        event.type === "turn_completed" &&
+        terminalDisposition === "closed_current" &&
+        turnStartedAt !== null;
+      if (completedCurrentTurn) {
+        completionDurationMs = Math.max(0, this.now().getTime() - turnStartedAt.getTime());
+      }
     }
 
     const flags: StreamEventFlags = { shouldDispatchEvent: true, shouldNotifyWaiters: true };
@@ -3516,6 +3533,7 @@ export class AgentManager {
       isForegroundEvent,
       eventTurnId,
       terminalDisposition,
+      completionDurationMs,
       flags,
     });
     if (dispatchPromise) {
@@ -3526,7 +3544,7 @@ export class AgentManager {
       if (isTurnTerminalEvent(event)) {
         this.runs.settleTerminalRun(agent.id, eventTurnId);
         if (isForegroundEvent) {
-          this.finalizeForegroundTurn(agent, eventTurnId);
+          this.finalizeForegroundTurn(agent, eventTurnId, completionDurationMs);
         }
       }
 
@@ -3607,10 +3625,19 @@ export class AgentManager {
     isForegroundEvent: boolean;
     eventTurnId: string | undefined;
     terminalDisposition: ActiveTurnTerminalDisposition;
+    completionDurationMs: number | null;
     flags: StreamEventFlags;
   }): Promise<void> | undefined {
-    const { agent, event, options, isForegroundEvent, eventTurnId, terminalDisposition, flags } =
-      params;
+    const {
+      agent,
+      event,
+      options,
+      isForegroundEvent,
+      eventTurnId,
+      terminalDisposition,
+      completionDurationMs,
+      flags,
+    } = params;
     switch (event.type) {
       case "thread_started":
         this.onStreamThreadStarted(agent);
@@ -3660,6 +3687,7 @@ export class AgentManager {
           eventTurnId,
           isForegroundEvent,
           terminalDisposition,
+          completionDurationMs,
         });
         return undefined;
       case "turn_failed":
@@ -3757,8 +3785,16 @@ export class AgentManager {
     eventTurnId: string | undefined;
     isForegroundEvent: boolean;
     terminalDisposition: ActiveTurnTerminalDisposition;
+    completionDurationMs: number | null;
   }): void {
-    const { agent, event, eventTurnId, isForegroundEvent, terminalDisposition } = params;
+    const {
+      agent,
+      event,
+      eventTurnId,
+      isForegroundEvent,
+      terminalDisposition,
+      completionDurationMs,
+    } = params;
     this.logger.trace(
       {
         agentId: agent.id,
@@ -3785,7 +3821,7 @@ export class AgentManager {
       !agent.pendingReplacement
     ) {
       (agent as ActiveManagedAgent).lifecycle = "idle";
-      this.emitState(agent);
+      this.emitState(agent, { completionDurationMs });
     }
     void this.refreshRuntimeInfo(agent);
   }
@@ -3897,7 +3933,7 @@ export class AgentManager {
     }
     this.runs.trackAutonomousRun(agent.id, eventTurnId ?? null);
     if (eventTurnId) {
-      this.openActiveTurn(agent, eventTurnId, new Date());
+      this.openActiveTurn(agent, eventTurnId, this.now());
     }
     agent.lifecycle = "running";
     this.emitState(agent);
@@ -4089,9 +4125,12 @@ export class AgentManager {
     return row;
   }
 
-  private emitState(agent: ManagedAgent, options?: { persist?: boolean }): void {
+  private emitState(
+    agent: ManagedAgent,
+    options?: { persist?: boolean; completionDurationMs?: number | null },
+  ): void {
     // Keep attention as an edge-triggered unread signal, not a level signal.
-    this.checkAndSetAttention(agent);
+    this.checkAndSetAttention(agent, options?.completionDurationMs ?? null);
     if (options?.persist !== false) {
       this.enqueueBackgroundPersist(agent);
     }
@@ -4124,7 +4163,7 @@ export class AgentManager {
     }
   }
 
-  private checkAndSetAttention(agent: ManagedAgent): void {
+  private checkAndSetAttention(agent: ManagedAgent, completionDurationMs: number | null): void {
     const previousStatus = this.previousStatuses.get(agent.id);
     const currentStatus = agent.lifecycle;
 
@@ -4148,7 +4187,7 @@ export class AgentManager {
         attentionReason: "finished",
         attentionTimestamp: new Date(),
       };
-      this.broadcastAgentAttention(agent, "finished");
+      this.broadcastAgentAttention(agent, "finished", completionDurationMs);
       return;
     }
 
@@ -4159,7 +4198,7 @@ export class AgentManager {
         attentionReason: "error",
         attentionTimestamp: new Date(),
       };
-      this.broadcastAgentAttention(agent, "error");
+      this.broadcastAgentAttention(agent, "error", null);
       return;
     }
   }
@@ -4267,6 +4306,7 @@ export class AgentManager {
   private broadcastAgentAttention(
     agent: ManagedAgent,
     reason: "finished" | "error" | "permission",
+    durationMs: number | null = null,
   ): void {
     if (isDelegatedAgent(agent)) {
       return;
@@ -4276,6 +4316,7 @@ export class AgentManager {
       agentId: agent.id,
       provider: agent.provider,
       reason,
+      durationMs,
     });
   }
 

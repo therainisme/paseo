@@ -50,6 +50,12 @@ The daemon also supports an optional shared-secret password (set via `auth.passw
 
 Connected clients are trusted operators of the daemon user. File previews follow that authority: a preview request may read any regular file the daemon process can read, while keeping path normalization and symlink checks in the daemon file service. Workspace-relative paths remain a UI convenience, not a security boundary.
 
+## Mobile push notifications
+
+Mobile builds use Expo Push Service, which forwards notifications through Apple Push Notification service or Firebase Cloud Messaging. Paseo sends only the fixed title `任务已完成`, the elapsed task duration, and the platform sound setting. It does not send agent output, prompts, permission details, terminal names, filesystem paths, or Paseo routing identifiers in the push payload. Expo and the platform push provider still process the device token, fixed notification text, duration, timing, IP address, and delivery metadata.
+
+Push notification taps open Paseo without a task deep link. Detailed notifications remain on the trusted client connection and do not pass through the mobile push provider.
+
 If you expose the daemon beyond loopback, such as by binding to `0.0.0.0`, forwarding it through a tunnel or reverse proxy, or publishing it from a Docker container, you are responsible for restricting and securing that access. Setting a password is strongly recommended in that case.
 
 In Docker, the official image runs the daemon and agents as the non-root
