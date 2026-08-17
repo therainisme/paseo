@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -713,6 +721,126 @@ describe("CheckoutSession", () => {
           },
         },
       ]);
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "maps a workspace subdirectory when the requested checkout uses a symlink path",
+      async () => {
+        const fixtureRoot = mkdtempSync(join(tmpdir(), "paseo-checkout-worktrees-"));
+        try {
+          const realRepo = join(fixtureRoot, "real-repo");
+          const repoAlias = join(fixtureRoot, "repo-alias");
+          const featureWorktree = join(fixtureRoot, "feature-worktree");
+          const workspaceSuffix = join("packages", "app");
+          const aliasWorkspacePath = join(repoAlias, workspaceSuffix);
+          mkdirSync(join(realRepo, workspaceSuffix), { recursive: true });
+          mkdirSync(join(featureWorktree, workspaceSuffix), { recursive: true });
+          symlinkSync(realRepo, repoAlias, "dir");
+
+          const { checkout, emitted } = makeCheckoutSession({
+            worktreeOperations: {
+              getGitWorktreeRoot: async () => realRepo,
+              getMainRepoRoot: async () => realRepo,
+              listGitWorktrees: async () => [
+                {
+                  path: featureWorktree,
+                  head: "feature-head",
+                  branchRef: "refs/heads/feature/symlink",
+                },
+                {
+                  path: realRepo,
+                  head: "main-head",
+                  branchRef: "refs/heads/main",
+                },
+              ],
+              resolvePaseoOwnership: async () => ({ allowed: false }),
+            },
+          });
+
+          await checkout.handleGetWorktreesRequest({
+            type: "checkout.get_worktrees.request",
+            cwd: aliasWorkspacePath,
+            requestId: "wt-symlink",
+          });
+
+          expect(emitted).toEqual([
+            {
+              type: "checkout.get_worktrees.response",
+              payload: {
+                cwd: aliasWorkspacePath,
+                mainRepoRoot: realRepo,
+                worktrees: [
+                  {
+                    path: join(featureWorktree, workspaceSuffix),
+                    worktreeRoot: featureWorktree,
+                    branch: "feature/symlink",
+                    head: "feature-head",
+                    isMainCheckout: false,
+                    isPaseoOwnedWorktree: false,
+                    isPrunable: false,
+                  },
+                  {
+                    path: join(realRepo, workspaceSuffix),
+                    worktreeRoot: realRepo,
+                    branch: "main",
+                    head: "main-head",
+                    isMainCheckout: true,
+                    isPaseoOwnedWorktree: false,
+                    isPrunable: false,
+                  },
+                ],
+                error: null,
+                requestId: "wt-symlink",
+              },
+            },
+          ]);
+        } finally {
+          rmSync(fixtureRoot, { recursive: true, force: true });
+        }
+      },
+    );
+
+    it("rejects a workspace path that is outside its git checkout", async () => {
+      const fixtureRoot = mkdtempSync(join(tmpdir(), "paseo-checkout-worktrees-"));
+      try {
+        const realRepo = join(fixtureRoot, "real-repo");
+        const outsideWorkspacePath = join(fixtureRoot, "outside", "packages", "app");
+        mkdirSync(realRepo, { recursive: true });
+        mkdirSync(outsideWorkspacePath, { recursive: true });
+
+        const { checkout, emitted } = makeCheckoutSession({
+          worktreeOperations: {
+            getGitWorktreeRoot: async () => realRepo,
+            getMainRepoRoot: async () => realRepo,
+            listGitWorktrees: async () => [],
+            resolvePaseoOwnership: async () => ({ allowed: false }),
+          },
+        });
+
+        await checkout.handleGetWorktreesRequest({
+          type: "checkout.get_worktrees.request",
+          cwd: outsideWorkspacePath,
+          requestId: "wt-outside",
+        });
+
+        expect(emitted).toEqual([
+          {
+            type: "checkout.get_worktrees.response",
+            payload: {
+              cwd: outsideWorkspacePath,
+              mainRepoRoot: null,
+              worktrees: [],
+              error: {
+                code: "UNKNOWN",
+                message: `Workspace path is outside its git checkout: ${outsideWorkspacePath}`,
+              },
+              requestId: "wt-outside",
+            },
+          },
+        ]);
+      } finally {
+        rmSync(fixtureRoot, { recursive: true, force: true });
+      }
     });
 
     it("returns a checkout error when the source is not a git checkout", async () => {

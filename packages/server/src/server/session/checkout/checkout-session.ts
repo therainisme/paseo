@@ -1,5 +1,5 @@
 import type pino from "pino";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { getErrorMessage } from "@getpaseo/protocol/error-utils";
 import { getForgeDefinitionOrNeutral } from "@getpaseo/protocol/forge-manifest";
 import { validateBranchSlug } from "@getpaseo/protocol/branch-slug";
@@ -59,7 +59,7 @@ import {
 } from "../../../utils/checkout-git.js";
 import { isPaseoOwnedWorktreeCwd } from "../../../utils/worktree.js";
 import { runGitCommand } from "../../../utils/run-git-command.js";
-import { expandTilde } from "../../../utils/path.js";
+import { expandTilde, getRealpathAwareRelativePath } from "../../../utils/path.js";
 import type { GitMetadataGenerator } from "./git-metadata-generator.js";
 
 /**
@@ -298,12 +298,8 @@ export class CheckoutSession {
       }
       const sourceWorktreeRoot = resolve(sourceWorktreeRootValue);
 
-      const relativeWorkspacePath = relative(sourceWorktreeRoot, resolvedCwd);
-      if (
-        relativeWorkspacePath === ".." ||
-        relativeWorkspacePath.startsWith(`..${sep}`) ||
-        isAbsolute(relativeWorkspacePath)
-      ) {
+      const relativeWorkspacePath = getRealpathAwareRelativePath(sourceWorktreeRoot, resolvedCwd);
+      if (relativeWorkspacePath === null) {
         throw new Error(`Workspace path is outside its git checkout: ${resolvedCwd}`);
       }
 
