@@ -23,6 +23,8 @@ interface UseBranchSwitcherInput {
 interface UseBranchSwitcherResult {
   branchOptions: ComboboxOption[];
   isOpen: boolean;
+  isLoading: boolean;
+  error: Error | null;
   setIsOpen: (open: boolean) => void;
   handleBranchSelect: (branchId: string) => void;
   invalidateStashAndCheckout: () => Promise<void>;
@@ -185,5 +187,13 @@ export function useBranchSwitcher({
     ],
   );
 
-  return { branchOptions, isOpen, setIsOpen, handleBranchSelect, invalidateStashAndCheckout };
+  return {
+    branchOptions,
+    isOpen,
+    isLoading: branchSuggestionsQuery.isLoading,
+    error: branchSuggestionsQuery.error,
+    setIsOpen,
+    handleBranchSelect,
+    invalidateStashAndCheckout,
+  };
 }

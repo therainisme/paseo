@@ -38,6 +38,7 @@ import { type GestureType } from "react-native-gesture-handler";
 import * as Clipboard from "expo-clipboard";
 import {
   ExternalLink,
+  FolderPlus,
   GitPullRequest,
   Settings,
   MoreVertical,
@@ -151,6 +152,10 @@ import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import type { HostBadgeModel } from "@/hosts/appearance";
 import { useHostBadges } from "@/hosts/use-host-badges";
 import { useSidebarRowItems } from "@/components/sidebar/display-preferences/model";
+import {
+  useAddExistingWorkspaceStore,
+  type ExistingWorkspaceTarget,
+} from "@/stores/add-existing-workspace-store";
 
 const workspaceKeyExtractor = (workspace: SidebarWorkspacePlacement) => workspace.workspaceKey;
 
@@ -158,6 +163,7 @@ const projectViewKeyExtractor = (project: SidebarProjectEntry) => project.viewKe
 
 const WORKSPACE_STATUS_DOT_WIDTH = 14;
 const ThemedExternalLink = withUnistyles(ExternalLink);
+const ThemedFolderPlus = withUnistyles(FolderPlus);
 const ThemedGitPullRequest = withUnistyles(GitPullRequest);
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const ThemedPlus = withUnistyles(Plus);
@@ -262,6 +268,7 @@ interface ProjectHeaderRowProps {
   chevron: "expand" | "collapse" | null;
   onPress: () => void;
   worktreeTarget: SidebarProjectHostTarget | null;
+  existingWorkspaceTargets: ExistingWorkspaceTarget[];
   isProjectActive?: boolean;
   onWorkspacePress?: () => void;
   onWorktreeCreated?: (workspaceId: string) => void;
@@ -426,6 +433,7 @@ function ProjectRowTrailingActions({
   isMobileBreakpoint,
   isProjectActive,
   onBeginWorkspaceSetup,
+  onAddExistingWorkspace,
   onRemoveProject,
   removeProjectStatus,
 }: {
@@ -438,6 +446,7 @@ function ProjectRowTrailingActions({
   isMobileBreakpoint: boolean;
   isProjectActive: boolean;
   onBeginWorkspaceSetup: () => void;
+  onAddExistingWorkspace?: () => void;
   onRemoveProject?: () => void;
   removeProjectStatus: "idle" | "pending" | "success";
 }) {
@@ -453,7 +462,7 @@ function ProjectRowTrailingActions({
           testID={`sidebar-project-new-worktree-${projectViewKey}`}
         />
       ) : null}
-      {onRemoveProject ? (
+      {onRemoveProject || onAddExistingWorkspace ? (
         <View
           style={!actionsVisible && styles.projectKebabButtonHidden}
           pointerEvents={actionsVisible ? "auto" : "none"}
@@ -462,6 +471,7 @@ function ProjectRowTrailingActions({
             projectViewKey={projectViewKey}
             settingsTarget={settingsTarget}
             projectPath={projectPath}
+            onAddExistingWorkspace={onAddExistingWorkspace}
             onRemoveProject={onRemoveProject}
             removeProjectStatus={removeProjectStatus}
           />
@@ -472,6 +482,9 @@ function ProjectRowTrailingActions({
 }
 
 const trash2LeadingIcon = <ThemedTrash2 size={14} uniProps={foregroundMutedColorMapping} />;
+const addExistingWorkspaceLeadingIcon = (
+  <ThemedFolderPlus size={14} uniProps={foregroundMutedColorMapping} />
+);
 const settingsLeadingIcon = <ThemedSettings size={14} uniProps={foregroundMutedColorMapping} />;
 const openInNewWindowLeadingIcon = (
   <ThemedExternalLink size={14} uniProps={foregroundMutedColorMapping} />
@@ -490,13 +503,15 @@ function ProjectKebabMenu({
   projectViewKey,
   settingsTarget,
   projectPath,
+  onAddExistingWorkspace,
   onRemoveProject,
   removeProjectStatus,
 }: {
   projectViewKey: string;
   settingsTarget: { serverId: string; projectId: string } | null;
   projectPath: string;
-  onRemoveProject: () => void;
+  onAddExistingWorkspace?: () => void;
+  onRemoveProject?: () => void;
   removeProjectStatus: "idle" | "pending" | "success";
 }) {
   const { t } = useTranslation();
@@ -517,6 +532,7 @@ function ProjectKebabMenu({
           projectViewKey={projectViewKey}
           settingsTarget={settingsTarget}
           projectPath={projectPath}
+          onAddExistingWorkspace={onAddExistingWorkspace}
           onRemoveProject={onRemoveProject}
           removeProjectStatus={removeProjectStatus}
         />
@@ -545,6 +561,7 @@ function ProjectMenuItems({
   projectViewKey,
   settingsTarget,
   projectPath,
+  onAddExistingWorkspace,
   onRemoveProject,
   removeProjectStatus,
 }: {
@@ -552,7 +569,8 @@ function ProjectMenuItems({
   projectViewKey: string;
   settingsTarget: { serverId: string; projectId: string } | null;
   projectPath: string;
-  onRemoveProject: () => void;
+  onAddExistingWorkspace?: () => void;
+  onRemoveProject?: () => void;
   removeProjectStatus: "idle" | "pending" | "success";
 }) {
   const { t } = useTranslation();
@@ -575,6 +593,16 @@ function ProjectMenuItems({
 
   return (
     <>
+      {onAddExistingWorkspace ? (
+        <ProjectMenuItem
+          surface={surface}
+          testID={`sidebar-project-menu-add-existing-workspace-${projectViewKey}`}
+          leading={addExistingWorkspaceLeadingIcon}
+          onSelect={onAddExistingWorkspace}
+        >
+          {t("sidebar.project.actions.addExistingWorkspace")}
+        </ProjectMenuItem>
+      ) : null}
       {settingsTarget ? (
         <ProjectMenuItem
           surface={surface}
@@ -600,16 +628,18 @@ function ProjectMenuItems({
         path={projectPath}
         testID={`sidebar-project-menu-open-folder-${projectViewKey}`}
       />
-      <ProjectMenuItem
-        surface={surface}
-        testID={`sidebar-project-menu-remove-${projectViewKey}`}
-        leading={trash2LeadingIcon}
-        status={removeProjectStatus}
-        pendingLabel={t("sidebar.project.actions.removing")}
-        onSelect={onRemoveProject}
-      >
-        {t("sidebar.project.actions.remove")}
-      </ProjectMenuItem>
+      {onRemoveProject ? (
+        <ProjectMenuItem
+          surface={surface}
+          testID={`sidebar-project-menu-remove-${projectViewKey}`}
+          leading={trash2LeadingIcon}
+          status={removeProjectStatus}
+          pendingLabel={t("sidebar.project.actions.removing")}
+          onSelect={onRemoveProject}
+        >
+          {t("sidebar.project.actions.remove")}
+        </ProjectMenuItem>
+      ) : null}
     </>
   );
 }
@@ -685,6 +715,7 @@ function WorkspaceRowRightGroup({
             {onArchive ? (
               <SidebarWorkspaceMenu
                 {...kebab.menuProps}
+                workspace={workspace}
                 workspaceKey={workspace.workspaceKey}
                 onCopyPath={onCopyPath}
                 onCopyBranchName={onCopyBranchName}
@@ -851,6 +882,7 @@ function NewWorkspaceGhostRow({
   );
 }
 
+// oxlint-disable-next-line complexity
 function ProjectHeaderRow({
   project,
   displayName,
@@ -860,6 +892,7 @@ function ProjectHeaderRow({
   chevron,
   onPress,
   worktreeTarget,
+  existingWorkspaceTargets,
   isProjectActive = false,
   onWorkspacePress,
   onWorktreeCreated: _onWorktreeCreated,
@@ -880,6 +913,22 @@ function ProjectHeaderRow({
   const localDaemonServerId = useLocalDaemonServerId();
   const projectPath = resolveSidebarProjectLocalPath(project, localDaemonServerId);
   const settingsTarget = project.hosts[0] ?? null;
+  const openAddExistingWorkspace = useAddExistingWorkspaceStore((state) => state.open);
+  const handleAddExistingWorkspace = useCallback(() => {
+    if (existingWorkspaceTargets.length === 0) return;
+    onWorkspacePress?.();
+    openAddExistingWorkspace({
+      projectName: displayName,
+      targets: existingWorkspaceTargets,
+      ...(worktreeTarget ? { preferredServerId: worktreeTarget.serverId } : {}),
+    });
+  }, [
+    displayName,
+    existingWorkspaceTargets,
+    onWorkspacePress,
+    openAddExistingWorkspace,
+    worktreeTarget,
+  ]);
   const handleBeginWorkspaceSetup = useCallback(() => {
     if (!worktreeTarget) {
       return;
@@ -974,6 +1023,9 @@ function ProjectHeaderRow({
         isMobileBreakpoint={isMobileBreakpoint}
         isProjectActive={isProjectActive}
         onBeginWorkspaceSetup={handleBeginWorkspaceSetup}
+        onAddExistingWorkspace={
+          existingWorkspaceTargets.length > 0 ? handleAddExistingWorkspace : undefined
+        }
         onRemoveProject={onRemoveProject}
         removeProjectStatus={removeProjectStatus}
       />
@@ -985,7 +1037,7 @@ function ProjectHeaderRow({
     </>
   );
 
-  if (!onRemoveProject) {
+  if (!onRemoveProject && existingWorkspaceTargets.length === 0) {
     return (
       <View
         {...dragAttributes}
@@ -1043,6 +1095,9 @@ function ProjectHeaderRow({
           projectViewKey={project.viewKey}
           settingsTarget={settingsTarget}
           projectPath={projectPath}
+          onAddExistingWorkspace={
+            existingWorkspaceTargets.length > 0 ? handleAddExistingWorkspace : undefined
+          }
           onRemoveProject={onRemoveProject}
           removeProjectStatus={removeProjectStatus}
         />
@@ -1591,6 +1646,7 @@ function ProjectBlock({
   activeWorkspaceSelection,
   hostBadgeByServerId,
   supportsMultiplicityByServerId,
+  supportsExistingWorkspacesByServerId,
   supportsPinningByServerId,
   onToggleWorkspacePin,
 }: {
@@ -1616,6 +1672,7 @@ function ProjectBlock({
   activeWorkspaceSelection: ActiveWorkspaceSelection | null;
   hostBadgeByServerId: ReadonlyMap<string, HostBadgeModel>;
   supportsMultiplicityByServerId: ReadonlyMap<string, boolean>;
+  supportsExistingWorkspacesByServerId: ReadonlyMap<string, boolean>;
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
   onToggleWorkspacePin: ToggleSidebarWorkspacePin;
 }) {
@@ -1633,6 +1690,23 @@ function ProjectBlock({
         supportsMultiplicityByServerId,
       }),
     [collapsed, project, supportsMultiplicityByServerId],
+  );
+  const existingWorkspaceTargets = useMemo<ExistingWorkspaceTarget[]>(
+    () =>
+      project.projectKind === "git"
+        ? project.hosts.flatMap((host) =>
+            supportsExistingWorkspacesByServerId.get(host.serverId) === true
+              ? [
+                  {
+                    serverId: host.serverId,
+                    projectId: host.projectId,
+                    sourceDirectory: host.iconWorkingDir,
+                  },
+                ]
+              : [],
+          )
+        : [],
+    [project.hosts, project.projectKind, supportsExistingWorkspacesByServerId],
   );
 
   // Collapsed rows hide their workspace rows, so the project row carries the most urgent
@@ -1832,6 +1906,7 @@ function ProjectBlock({
         worktreeTarget={
           rowModel.trailingAction.kind === "new_workspace" ? rowModel.trailingAction.target : null
         }
+        existingWorkspaceTargets={existingWorkspaceTargets}
         isProjectActive={active}
         onWorkspacePress={onWorkspacePress}
         onWorktreeCreated={onWorktreeCreated}
@@ -1864,6 +1939,7 @@ function areProjectBlockPropsEqual(previous: ProjectBlockProps, next: ProjectBlo
     previous.shortcutIndexByWorkspaceKey === next.shortcutIndexByWorkspaceKey &&
     previous.hostBadgeByServerId === next.hostBadgeByServerId &&
     previous.supportsMultiplicityByServerId === next.supportsMultiplicityByServerId &&
+    previous.supportsExistingWorkspacesByServerId === next.supportsExistingWorkspacesByServerId &&
     previous.supportsPinningByServerId === next.supportsPinningByServerId &&
     previous.onToggleWorkspacePin === next.onToggleWorkspacePin &&
     previous.parentGestureRef === next.parentGestureRef &&
@@ -1939,6 +2015,7 @@ export function SidebarWorkspaceList({
   });
   const serverIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
   const supportsMultiplicityByServerId = useHostFeatureMap(serverIds, "workspaceMultiplicity");
+  const supportsExistingWorkspacesByServerId = useHostFeatureMap(serverIds, "checkoutWorktreeList");
   const supportsPinningByServerId = useHostFeatureMap(serverIds, "workspacePinning");
   const onToggleWorkspacePin = useSidebarWorkspacePinController();
   // Status mode drops the project grouping, so its rows carry their own project
@@ -1983,6 +2060,7 @@ export function SidebarWorkspaceList({
         pathname={pathname}
         hostBadgeByServerId={hostBadgeByServerId}
         supportsMultiplicityByServerId={supportsMultiplicityByServerId}
+        supportsExistingWorkspacesByServerId={supportsExistingWorkspacesByServerId}
         supportsPinningByServerId={supportsPinningByServerId}
         onToggleWorkspacePin={onToggleWorkspacePin}
       />
@@ -2051,12 +2129,14 @@ function ProjectModeList({
   pathname,
   hostBadgeByServerId,
   supportsMultiplicityByServerId,
+  supportsExistingWorkspacesByServerId,
   supportsPinningByServerId,
   onToggleWorkspacePin,
 }: Omit<SidebarWorkspaceListProps, "statusGroups" | "groupMode" | "isRefreshing" | "onRefresh"> & {
   pathname: string;
   hostBadgeByServerId: ReadonlyMap<string, HostBadgeModel>;
   supportsMultiplicityByServerId: ReadonlyMap<string, boolean>;
+  supportsExistingWorkspacesByServerId: ReadonlyMap<string, boolean>;
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
   onToggleWorkspacePin: ToggleSidebarWorkspacePin;
 }) {
@@ -2262,6 +2342,7 @@ function ProjectModeList({
           activeWorkspaceSelection={activeWorkspaceSelection}
           hostBadgeByServerId={hostBadgeByServerId}
           supportsMultiplicityByServerId={supportsMultiplicityByServerId}
+          supportsExistingWorkspacesByServerId={supportsExistingWorkspacesByServerId}
           supportsPinningByServerId={supportsPinningByServerId}
           onToggleWorkspacePin={onToggleWorkspacePin}
         />
@@ -2274,6 +2355,7 @@ function ProjectModeList({
       handleWorkspaceReorder,
       hostBadgeByServerId,
       supportsMultiplicityByServerId,
+      supportsExistingWorkspacesByServerId,
       supportsPinningByServerId,
       onToggleWorkspacePin,
       onWorkspacePress,

@@ -843,6 +843,7 @@ function StatusWorkspaceActionSlot({
         {kebab.showKebab && onArchive ? (
           <SidebarWorkspaceMenu
             {...kebab.menuProps}
+            workspace={workspace}
             workspaceKey={workspace.workspaceKey}
             onCopyPath={onCopyPath}
             onCopyBranchName={onCopyBranchName}

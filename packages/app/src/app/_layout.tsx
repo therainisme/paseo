@@ -26,6 +26,7 @@ import { CommandCenterRootActions } from "@/command-center/root-registration";
 import { CommandCenterProvider } from "@/command-center/provider";
 import { CommandCenterWorkspaceActions } from "@/command-center/workspace-registration";
 import { AddProjectFlowHost } from "@/components/add-project-flow-host";
+import { AddExistingWorkspaceHost } from "@/components/add-existing-workspace-flow";
 import { AppearanceStyleBoundary } from "@/components/appearance-style-boundary";
 import { WorktreeSetupCalloutSource } from "@/components/worktree-setup-callout-source";
 import { DownloadToast } from "@/components/download-toast";
@@ -40,6 +41,7 @@ import { CompactExplorerSidebarHost } from "@/components/compact-explorer-sideba
 import { ProviderSettingsHost } from "@/components/provider-settings-host";
 import { RootErrorBoundary } from "@/components/root-error-boundary";
 import { WorkspaceSetupDialog } from "@/components/workspace-setup-dialog";
+import { WorkspaceBranchPickerHost } from "@/components/workspace-branch-picker";
 import { WorkspaceShortcutTargetsSubscriber } from "@/components/workspace-shortcut-targets-subscriber";
 import { FloatingPanelPortalHost } from "@/components/ui/floating-panel-portal";
 import { HostChooserModal, useHostChooser } from "@/hosts/host-chooser";
@@ -591,6 +593,8 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
       <WorkspacePinShortcutHandler />
       <CommandCenter />
       <AddProjectFlowHost />
+      <AddExistingWorkspaceHost />
+      <WorkspaceBranchPickerHost />
       <HostChooserModal />
       <ProviderSettingsHost />
       <WorkspaceSetupDialog />

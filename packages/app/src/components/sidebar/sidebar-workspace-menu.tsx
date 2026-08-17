@@ -1,8 +1,23 @@
-import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
+import {
+  useCallback,
+  useMemo,
+  type ComponentProps,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { Archive, CircleCheck, Copy, MoreVertical, Pencil, Pin, PinOff } from "lucide-react-native";
+import {
+  Archive,
+  CircleCheck,
+  Copy,
+  GitBranch,
+  MoreVertical,
+  Pencil,
+  Pin,
+  PinOff,
+} from "lucide-react-native";
 import { isWeb } from "@/constants/platform";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
@@ -28,6 +43,7 @@ import {
   workspaceServiceLabelKey,
   type WorkspaceServiceSummary,
 } from "@/components/sidebar/workspace-meta-row";
+import { useWorkspaceBranchPickerStore } from "@/stores/workspace-branch-picker-store";
 
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const foregroundMutedColorMapping = (theme: Theme) => ({
@@ -36,6 +52,7 @@ const foregroundMutedColorMapping = (theme: Theme) => ({
 
 const ThemedMoreVertical = withUnistyles(MoreVertical);
 const ThemedCopy = withUnistyles(Copy);
+const ThemedGitBranch = withUnistyles(GitBranch);
 const ThemedArchive = withUnistyles(Archive);
 const ThemedPencil = withUnistyles(Pencil);
 const ThemedCircleCheck = withUnistyles(CircleCheck);
@@ -43,6 +60,9 @@ const ThemedPin = withUnistyles(Pin);
 const ThemedPinOff = withUnistyles(PinOff);
 
 const copyLeadingIcon = <ThemedCopy size={14} uniProps={foregroundMutedColorMapping} />;
+const switchBranchLeadingIcon = (
+  <ThemedGitBranch size={14} uniProps={foregroundMutedColorMapping} />
+);
 const renameLeadingIcon = <ThemedPencil size={14} uniProps={foregroundMutedColorMapping} />;
 const markAsReadLeadingIcon = (
   <ThemedCircleCheck size={14} uniProps={foregroundMutedColorMapping} />
@@ -61,6 +81,7 @@ function renderTriggerIcon({ hovered }: { hovered?: boolean }) {
 }
 
 export interface SidebarWorkspaceMenuProps {
+  workspace?: SidebarWorkspaceEntry;
   workspaceKey: string;
   onCopyPath?: () => void;
   onCopyBranchName?: () => void;
@@ -106,6 +127,7 @@ function WorkspaceMenuItem({
 
 function SidebarWorkspaceMenuItems({
   surface,
+  workspace,
   workspaceKey,
   onCopyPath,
   onCopyBranchName,
@@ -121,6 +143,16 @@ function SidebarWorkspaceMenuItems({
   openInFileManagerPath,
 }: SidebarWorkspaceMenuItemsProps & { surface: MenuSurface }): ReactNode {
   const { t } = useTranslation();
+  const openBranchPicker = useWorkspaceBranchPickerStore((state) => state.open);
+  const handleSwitchBranch = useCallback(() => {
+    if (!workspace || workspace.projectKind !== "git" || !workspace.workspaceDirectory) return;
+    openBranchPicker({
+      serverId: workspace.serverId,
+      workspaceId: workspace.workspaceId,
+      workspaceDirectory: workspace.workspaceDirectory,
+      currentBranch: workspace.currentBranch,
+    });
+  }, [openBranchPicker, workspace]);
   const archiveTrailing = useMemo(
     () => (archiveShortcutKeys ? <Shortcut chord={archiveShortcutKeys} /> : null),
     [archiveShortcutKeys],
@@ -146,6 +178,16 @@ function SidebarWorkspaceMenuItems({
           onSelect={onCopyBranchName}
         >
           {t("sidebar.workspace.actions.copyBranchName")}
+        </WorkspaceMenuItem>
+      ) : null}
+      {workspace?.projectKind === "git" ? (
+        <WorkspaceMenuItem
+          surface={surface}
+          testID={`sidebar-workspace-menu-switch-branch-${workspaceKey}`}
+          leading={switchBranchLeadingIcon}
+          onSelect={handleSwitchBranch}
+        >
+          {t("sidebar.workspace.actions.switchBranch")}
         </WorkspaceMenuItem>
       ) : null}
       {onRename ? (
@@ -201,6 +243,7 @@ function SidebarWorkspaceMenuItems({
 }
 
 export function SidebarWorkspaceMenu({
+  workspace,
   workspaceKey,
   onCopyPath,
   onCopyBranchName,
@@ -232,6 +275,7 @@ export function SidebarWorkspaceMenu({
       <DropdownMenuContent align="end" width={260} sheetTitle={t("sidebar.workspace.actions.menu")}>
         <SidebarWorkspaceMenuItems
           surface="dropdown"
+          workspace={workspace}
           workspaceKey={workspaceKey}
           onCopyPath={onCopyPath}
           onCopyBranchName={onCopyBranchName}
@@ -330,6 +374,7 @@ export function SidebarWorkspaceContextMenu({
       >
         <SidebarWorkspaceMenuItems
           surface="context"
+          workspace={workspace}
           workspaceKey={workspaceKey}
           onCopyPath={onCopyPath}
           onCopyBranchName={onCopyBranchName}
