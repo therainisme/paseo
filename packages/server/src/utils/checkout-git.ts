@@ -969,7 +969,10 @@ async function getRebaseHeadBranch(cwd: string): Promise<string | null> {
   return results.find((result): result is string => result !== null) ?? null;
 }
 
-async function getWorktreeRoot(cwd: string, context?: CheckoutContext): Promise<string | null> {
+export async function getGitWorktreeRoot(
+  cwd: string,
+  context?: CheckoutContext,
+): Promise<string | null> {
   try {
     const { stdout } = await runGitCommand(["rev-parse", "--show-toplevel"], {
       cwd,
@@ -1030,8 +1033,19 @@ async function getMainRepoRootFromCommonDir(
 
 export interface GitWorktreeEntry {
   path: string;
+  head?: string;
   branchRef?: string;
   isBare?: boolean;
+  isDetached?: boolean;
+  isPrunable?: boolean;
+}
+
+export async function listGitWorktrees(cwd: string): Promise<GitWorktreeEntry[]> {
+  const { stdout } = await runGitCommand(["worktree", "list", "--porcelain", "-z"], {
+    cwd,
+    envOverlay: READ_ONLY_GIT_ENV,
+  });
+  return parseWorktreeList(stdout);
 }
 
 /** Check whether a path is under Paseo's worktree root. */
@@ -1062,23 +1076,34 @@ export function isDescendantPath(child: string, parent: string): boolean {
 export function parseWorktreeList(output: string): GitWorktreeEntry[] {
   const entries: GitWorktreeEntry[] = [];
   let current: GitWorktreeEntry | null = null;
-  for (const line of output.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) {
+  const nullDelimited = output.includes("\0");
+  const fields = output.split(nullDelimited ? "\0" : "\n");
+  for (const field of fields) {
+    const line = nullDelimited ? field : field.trim();
+    if (!line) {
       continue;
     }
-    if (trimmed.startsWith("worktree ")) {
+    if (line.startsWith("worktree ")) {
       if (current) {
         entries.push(current);
       }
-      current = { path: trimmed.slice("worktree ".length).trim() };
+      current = { path: line.slice("worktree ".length) };
       continue;
     }
-    if (current && trimmed.startsWith("branch ")) {
-      current.branchRef = trimmed.slice("branch ".length).trim();
+    if (current && line.startsWith("HEAD ")) {
+      current.head = line.slice("HEAD ".length);
     }
-    if (current && trimmed === "bare") {
+    if (current && line.startsWith("branch ")) {
+      current.branchRef = line.slice("branch ".length);
+    }
+    if (current && line === "bare") {
       current.isBare = true;
+    }
+    if (current && line === "detached") {
+      current.isDetached = true;
+    }
+    if (current && line.startsWith("prunable")) {
+      current.isPrunable = true;
     }
   }
   if (current) {
@@ -1158,7 +1183,8 @@ async function getPaseoWorktreeForCwd(
 
   return {
     isPaseoOwnedWorktree: true,
-    worktreeRoot: options.knownWorktreeRoot ?? (await getWorktreeRoot(cwd, options.context)) ?? cwd,
+    worktreeRoot:
+      options.knownWorktreeRoot ?? (await getGitWorktreeRoot(cwd, options.context)) ?? cwd,
   };
 }
 
@@ -1683,7 +1709,7 @@ async function inspectCheckoutContext(
   cwd: string,
   context?: CheckoutContext,
 ): Promise<CheckoutInspectionContext | null> {
-  const root = await getWorktreeRoot(cwd, context);
+  const root = await getGitWorktreeRoot(cwd, context);
   if (!root) {
     return null;
   }
@@ -3472,7 +3498,7 @@ export async function mergeToBase(
     throw new Error("Unable to determine current branch for merge");
   }
   const normalizedBaseRef = resolveMergeTargetBranch(baseRef);
-  const currentWorktreeRoot = (await getWorktreeRoot(cwd, context)) ?? cwd;
+  const currentWorktreeRoot = (await getGitWorktreeRoot(cwd, context)) ?? cwd;
   if (normalizedBaseRef === currentBranch) {
     return currentWorktreeRoot;
   }

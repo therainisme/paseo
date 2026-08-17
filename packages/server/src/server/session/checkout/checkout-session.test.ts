@@ -8,6 +8,7 @@ import {
   type CheckoutDiffSubscriber,
   CheckoutSession,
   type CheckoutSessionHost,
+  type CheckoutWorktreeOperations,
 } from "./checkout-session.js";
 import type { GitMutationService } from "../git-mutation/git-mutation-service.js";
 import { createGitHubService } from "../../../services/github-service.js";
@@ -110,6 +111,7 @@ function makeCheckoutSession(options?: {
   host?: Partial<CheckoutSessionHost>;
   gitMutation?: Partial<GitMutationFake>;
   gitMetadataGenerator?: Partial<GitMetadataGenerator>;
+  worktreeOperations?: CheckoutWorktreeOperations;
 }) {
   const emitted: SessionOutboundMessage[] = [];
   const hostCalls: RecordedHostCalls = {
@@ -172,6 +174,7 @@ function makeCheckoutSession(options?: {
     paseoHome: "/tmp/paseo-home",
     worktreesRoot: undefined,
     logger: pino({ level: "silent" }),
+    worktreeOperations: options?.worktreeOperations,
   });
   return { checkout, emitted, hostCalls, gitMutationCalls, generatorCalls };
 }
@@ -642,6 +645,102 @@ describe("CheckoutSession", () => {
         {
           type: "checkout_status_update",
           payload: expect.objectContaining({ cwd: "/repo", currentBranch: "main" }),
+        },
+      ]);
+    });
+  });
+
+  describe("worktree listing", () => {
+    it("maps the selected project subdirectory across every non-bare checkout", async () => {
+      const { checkout, emitted } = makeCheckoutSession({
+        worktreeOperations: {
+          getGitWorktreeRoot: async () => "/repo",
+          getMainRepoRoot: async () => "/repo",
+          listGitWorktrees: async () => [
+            {
+              path: "/worktrees/feature",
+              head: "feature-head",
+              branchRef: "refs/heads/feature/auth",
+            },
+            {
+              path: "/repo",
+              head: "main-head",
+              branchRef: "refs/heads/main",
+            },
+            { path: "/repo.git", isBare: true },
+          ],
+          resolvePaseoOwnership: async (cwd) => ({
+            allowed: cwd === "/worktrees/feature",
+            worktreePath: cwd,
+          }),
+        },
+      });
+
+      await checkout.handleGetWorktreesRequest({
+        type: "checkout.get_worktrees.request",
+        cwd: "/repo/packages/app",
+        requestId: "wt1",
+      });
+
+      expect(emitted).toEqual([
+        {
+          type: "checkout.get_worktrees.response",
+          payload: {
+            cwd: "/repo/packages/app",
+            mainRepoRoot: "/repo",
+            worktrees: [
+              {
+                path: "/worktrees/feature/packages/app",
+                worktreeRoot: "/worktrees/feature",
+                branch: "feature/auth",
+                head: "feature-head",
+                isMainCheckout: false,
+                isPaseoOwnedWorktree: true,
+                isPrunable: false,
+              },
+              {
+                path: "/repo/packages/app",
+                worktreeRoot: "/repo",
+                branch: "main",
+                head: "main-head",
+                isMainCheckout: true,
+                isPaseoOwnedWorktree: false,
+                isPrunable: false,
+              },
+            ],
+            error: null,
+            requestId: "wt1",
+          },
+        },
+      ]);
+    });
+
+    it("returns a checkout error when the source is not a git checkout", async () => {
+      const { checkout, emitted } = makeCheckoutSession({
+        worktreeOperations: {
+          getGitWorktreeRoot: async () => null,
+          getMainRepoRoot: async () => "/plain",
+          listGitWorktrees: async () => [],
+          resolvePaseoOwnership: async () => ({ allowed: false }),
+        },
+      });
+
+      await checkout.handleGetWorktreesRequest({
+        type: "checkout.get_worktrees.request",
+        cwd: "/plain",
+        requestId: "wt2",
+      });
+
+      expect(emitted).toEqual([
+        {
+          type: "checkout.get_worktrees.response",
+          payload: {
+            cwd: "/plain",
+            mainRepoRoot: null,
+            worktrees: [],
+            error: { code: "UNKNOWN", message: "Not a git repository: /plain" },
+            requestId: "wt2",
+          },
         },
       ]);
     });

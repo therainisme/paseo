@@ -32,6 +32,7 @@ import type {
   AgentForkContextResponseMessage,
   GitSetupOptions,
   CheckoutStatusResponse,
+  CheckoutGetWorktreesResponse,
   CheckoutCommit,
   ParsedDiffFile,
   CheckoutCommitResponse,
@@ -402,6 +403,7 @@ type CheckoutGithubGetCheckDetailsPayload = CheckoutGithubGetCheckDetailsRespons
 type CheckoutPrStatusPayload = CheckoutPrStatusResponse["payload"];
 type PullRequestTimelinePayload = PullRequestTimelineResponse["payload"];
 type CheckoutSwitchBranchPayload = CheckoutSwitchBranchResponse["payload"];
+type CheckoutGetWorktreesPayload = CheckoutGetWorktreesResponse["payload"];
 export type RenameBranchResult = z.infer<typeof CheckoutRenameBranchResponseSchema>["payload"];
 type StashSavePayload = StashSaveResponse["payload"];
 type StashPopPayload = StashPopResponse["payload"];
@@ -3510,6 +3512,20 @@ export class DaemonClient {
   // ============================================================================
   // Git Operations
   // ============================================================================
+
+  async getCheckoutWorktrees(
+    cwd: string,
+    requestId?: string,
+  ): Promise<CheckoutGetWorktreesPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "checkout.get_worktrees.request",
+        cwd,
+      },
+      responseType: "checkout.get_worktrees.response",
+    });
+  }
 
   async getCheckoutStatus(
     cwd: string,

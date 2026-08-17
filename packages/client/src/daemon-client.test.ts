@@ -2824,6 +2824,57 @@ test("creates and registers a project directory through the dotted RPC", async (
   });
 });
 
+test("lists all repository worktrees through checkout.get_worktrees", async () => {
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_unit_test",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+
+  const promise = client.getCheckoutWorktrees("/repo/packages/app", "req-worktrees");
+
+  expect(parseSentFrame(mock.sent[0])).toEqual({
+    type: "checkout.get_worktrees.request",
+    cwd: "/repo/packages/app",
+    requestId: "req-worktrees",
+  });
+
+  const payload = {
+    cwd: "/repo/packages/app",
+    mainRepoRoot: "/repo",
+    worktrees: [
+      {
+        path: "/worktrees/feature/packages/app",
+        worktreeRoot: "/worktrees/feature",
+        branch: "feature/auth",
+        head: "0123456789abcdef",
+        isMainCheckout: false,
+        isPaseoOwnedWorktree: false,
+        isPrunable: false,
+      },
+    ],
+    error: null,
+    requestId: "req-worktrees",
+  };
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "checkout.get_worktrees.response",
+      payload,
+    }),
+  );
+
+  await expect(promise).resolves.toEqual(payload);
+});
+
 test("sends first-agent prompt context with workspace.create.request", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();

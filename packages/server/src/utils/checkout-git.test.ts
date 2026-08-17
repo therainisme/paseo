@@ -3653,6 +3653,43 @@ const x = 1;
       });
     });
 
+    it("preserves special characters in NUL-delimited output", () => {
+      const path = "/home/user/repo\nwith-newline ";
+      const output = [
+        `worktree ${path}`,
+        "HEAD 0123456789abcdef",
+        "branch refs/heads/main",
+        "",
+      ].join("\0");
+
+      expect(parseWorktreeList(output)).toEqual([
+        {
+          path,
+          head: "0123456789abcdef",
+          branchRef: "refs/heads/main",
+        },
+      ]);
+    });
+
+    it("detects detached, prunable, and HEAD metadata", () => {
+      const output = [
+        "worktree /home/user/stale",
+        "HEAD 0123456789abcdef",
+        "detached",
+        "prunable gitdir file points to non-existent location",
+        "",
+      ].join("\n");
+
+      expect(parseWorktreeList(output)).toEqual([
+        {
+          path: "/home/user/stale",
+          head: "0123456789abcdef",
+          isDetached: true,
+          isPrunable: true,
+        },
+      ]);
+    });
+
     it("detects bare repos", () => {
       const output = ["worktree /home/user/repo.git", "bare", ""].join("\n");
       const entries = parseWorktreeList(output);

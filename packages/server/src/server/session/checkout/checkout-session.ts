@@ -1,5 +1,5 @@
 import type pino from "pino";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { getErrorMessage } from "@getpaseo/protocol/error-utils";
 import { getForgeDefinitionOrNeutral } from "@getpaseo/protocol/forge-manifest";
 import { validateBranchSlug } from "@getpaseo/protocol/branch-slug";
@@ -7,6 +7,7 @@ import type {
   BranchSuggestionsRequest,
   CheckoutCommitsListRequest,
   CheckoutCommitFileDiffRequest,
+  CheckoutGetWorktreesRequest,
   CheckoutRefreshRequest,
   CheckoutRenameBranchRequest,
   CheckoutStatusRequest,
@@ -50,8 +51,13 @@ import {
   pullCurrentBranch,
   pushCurrentBranch,
   listCheckoutCommits,
+  getGitWorktreeRoot,
+  getMainRepoRoot,
+  listGitWorktrees,
   getCommitFileDiff,
+  type GitWorktreeEntry,
 } from "../../../utils/checkout-git.js";
+import { isPaseoOwnedWorktreeCwd } from "../../../utils/worktree.js";
 import { runGitCommand } from "../../../utils/run-git-command.js";
 import { expandTilde } from "../../../utils/path.js";
 import type { GitMetadataGenerator } from "./git-metadata-generator.js";
@@ -115,6 +121,13 @@ export interface CheckoutDiffSubscriber {
   scheduleRefreshForCwd(cwd: string): void;
 }
 
+export interface CheckoutWorktreeOperations {
+  getGitWorktreeRoot(cwd: string): Promise<string | null>;
+  getMainRepoRoot(cwd: string): Promise<string>;
+  listGitWorktrees(cwd: string): Promise<GitWorktreeEntry[]>;
+  resolvePaseoOwnership: typeof isPaseoOwnedWorktreeCwd;
+}
+
 export interface CheckoutSessionOptions {
   host: CheckoutSessionHost;
   gitMutation: Pick<GitMutationService, "checkoutExistingBranch" | "notifyGitMutation">;
@@ -125,6 +138,7 @@ export interface CheckoutSessionOptions {
   paseoHome: string;
   worktreesRoot: string | undefined;
   logger: pino.Logger;
+  worktreeOperations?: CheckoutWorktreeOperations;
 }
 
 /**
@@ -152,6 +166,7 @@ export class CheckoutSession {
   private readonly paseoHome: string;
   private readonly worktreesRoot: string | undefined;
   private readonly logger: pino.Logger;
+  private readonly worktreeOperations: CheckoutWorktreeOperations;
   private readonly diffSubscriptions = new Map<string, () => void>();
 
   constructor(options: CheckoutSessionOptions) {
@@ -164,6 +179,12 @@ export class CheckoutSession {
     this.paseoHome = options.paseoHome;
     this.worktreesRoot = options.worktreesRoot;
     this.logger = options.logger;
+    this.worktreeOperations = options.worktreeOperations ?? {
+      getGitWorktreeRoot,
+      getMainRepoRoot,
+      listGitWorktrees,
+      resolvePaseoOwnership: isPaseoOwnedWorktreeCwd,
+    };
   }
 
   private async resolveForgeService(
@@ -264,6 +285,95 @@ export class CheckoutSession {
         },
       });
     }
+  }
+
+  async handleGetWorktreesRequest(msg: CheckoutGetWorktreesRequest): Promise<void> {
+    const { cwd, requestId } = msg;
+    const resolvedCwd = resolve(expandTilde(cwd));
+
+    try {
+      const sourceWorktreeRootValue = await this.worktreeOperations.getGitWorktreeRoot(resolvedCwd);
+      if (!sourceWorktreeRootValue) {
+        throw new Error(`Not a git repository: ${resolvedCwd}`);
+      }
+      const sourceWorktreeRoot = resolve(sourceWorktreeRootValue);
+
+      const relativeWorkspacePath = relative(sourceWorktreeRoot, resolvedCwd);
+      if (
+        relativeWorkspacePath === ".." ||
+        relativeWorkspacePath.startsWith(`..${sep}`) ||
+        isAbsolute(relativeWorkspacePath)
+      ) {
+        throw new Error(`Workspace path is outside its git checkout: ${resolvedCwd}`);
+      }
+
+      const [entries, mainRepoRootValue] = await Promise.all([
+        this.worktreeOperations.listGitWorktrees(sourceWorktreeRoot),
+        this.worktreeOperations.getMainRepoRoot(sourceWorktreeRoot),
+      ]);
+      const mainRepoRoot = resolve(mainRepoRootValue);
+      const worktrees = await Promise.all(
+        entries.flatMap((entry) => {
+          if (entry.isBare) return [];
+          return [
+            this.describeExistingWorktree({
+              entry,
+              mainRepoRoot,
+              relativeWorkspacePath,
+            }),
+          ];
+        }),
+      );
+
+      this.host.emit({
+        type: "checkout.get_worktrees.response",
+        payload: { cwd, mainRepoRoot, worktrees, error: null, requestId },
+      });
+    } catch (error) {
+      this.host.emit({
+        type: "checkout.get_worktrees.response",
+        payload: {
+          cwd,
+          mainRepoRoot: null,
+          worktrees: [],
+          error: toCheckoutError(error),
+          requestId,
+        },
+      });
+    }
+  }
+
+  private async describeExistingWorktree(input: {
+    entry: GitWorktreeEntry;
+    mainRepoRoot: string;
+    relativeWorkspacePath: string;
+  }) {
+    const worktreeRoot = resolve(input.entry.path);
+    const path = input.relativeWorkspacePath
+      ? join(worktreeRoot, input.relativeWorkspacePath)
+      : worktreeRoot;
+    const ownership = await this.worktreeOperations.resolvePaseoOwnership(worktreeRoot, {
+      paseoHome: this.paseoHome,
+      worktreesRoot: this.worktreesRoot,
+      knownGitCommonDir: null,
+    });
+    const branchRef = input.entry.branchRef?.trim() ?? "";
+    let branch: string | null = null;
+    if (branchRef) {
+      branch = branchRef.startsWith("refs/heads/")
+        ? branchRef.slice("refs/heads/".length)
+        : branchRef;
+    }
+
+    return {
+      path,
+      worktreeRoot,
+      branch,
+      head: input.entry.head?.trim() || null,
+      isMainCheckout: relative(input.mainRepoRoot, worktreeRoot) === "",
+      isPaseoOwnedWorktree: ownership.allowed,
+      isPrunable: input.entry.isPrunable === true,
+    };
   }
 
   async handleCommitsListRequest(msg: CheckoutCommitsListRequest): Promise<void> {

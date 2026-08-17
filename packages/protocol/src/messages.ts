@@ -1787,6 +1787,12 @@ export const CheckoutStatusRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const CheckoutGetWorktreesRequestSchema = z.object({
+  type: z.literal("checkout.get_worktrees.request"),
+  cwd: z.string(),
+  requestId: z.string(),
+});
+
 export const SubscribeCheckoutDiffRequestSchema = z.object({
   type: z.literal("subscribe_checkout_diff_request"),
   subscriptionId: z.string(),
@@ -2773,6 +2779,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   AgentRewindRequestMessageSchema,
   AgentPermissionResponseMessageSchema,
   CheckoutStatusRequestSchema,
+  CheckoutGetWorktreesRequestSchema,
   SubscribeCheckoutDiffRequestSchema,
   UnsubscribeCheckoutDiffRequestSchema,
   CheckoutCommitRequestSchema,
@@ -3068,6 +3075,8 @@ export const ServerInfoStatusPayloadSchema = z
         agentHistorySearch: z.boolean().optional(),
         // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
         checkoutRefresh: z.boolean().optional(),
+        // COMPAT(checkoutWorktreeList): added in v0.3.0, remove gate after 2027-02-16.
+        checkoutWorktreeList: z.boolean().optional(),
         // COMPAT(workspaceMultiplicity): added in v0.1.97, drop the gate when floor >= v0.1.97
         workspaceMultiplicity: z.boolean().optional(),
         // COMPAT(projectRemove): added in v0.1.97, drop the gate when floor >= v0.1.97.
@@ -4321,6 +4330,27 @@ const CheckoutStatusCommonSchema = z.object({
   // upstream branch name is not necessarily currentBranch, so composing one is wrong.
   // aheadOfOrigin/behindOfOrigin are measured against exactly this ref.
   upstreamRef: z.string().nullable().optional(),
+});
+
+const CheckoutWorktreeSchema = z.object({
+  path: z.string(),
+  worktreeRoot: z.string(),
+  branch: z.string().nullable(),
+  head: z.string().nullable(),
+  isMainCheckout: z.boolean(),
+  isPaseoOwnedWorktree: z.boolean(),
+  isPrunable: z.boolean(),
+});
+
+export const CheckoutGetWorktreesResponseSchema = z.object({
+  type: z.literal("checkout.get_worktrees.response"),
+  payload: z.object({
+    cwd: z.string(),
+    mainRepoRoot: z.string().nullable(),
+    worktrees: z.array(CheckoutWorktreeSchema),
+    error: CheckoutErrorSchema.nullable(),
+    requestId: z.string(),
+  }),
 });
 
 const CheckoutStatusNotGitSchema = CheckoutStatusCommonSchema.extend({
@@ -5742,6 +5772,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   AgentArchivedMessageSchema,
   CloseItemsResponseSchema,
   CheckoutStatusResponseSchema,
+  CheckoutGetWorktreesResponseSchema,
   CheckoutStatusUpdateSchema,
   SubscribeCheckoutDiffResponseSchema,
   CheckoutDiffUpdateSchema,
@@ -6111,6 +6142,8 @@ export type CheckoutCommitFile = z.infer<typeof CheckoutCommitFileSchema>;
 export type CheckoutCommit = z.infer<typeof CheckoutCommitSchema>;
 export type CheckoutCommitsListRequest = z.infer<typeof CheckoutCommitsListRequestSchema>;
 export type CheckoutCommitsListResponse = z.infer<typeof CheckoutCommitsListResponseSchema>;
+export type CheckoutGetWorktreesRequest = z.infer<typeof CheckoutGetWorktreesRequestSchema>;
+export type CheckoutGetWorktreesResponse = z.infer<typeof CheckoutGetWorktreesResponseSchema>;
 export type CheckoutCommitFileDiffRequest = z.infer<typeof CheckoutCommitFileDiffRequestSchema>;
 export type CheckoutCommitFileDiffResponse = z.infer<typeof CheckoutCommitFileDiffResponseSchema>;
 export type ParsedDiffFile = z.infer<typeof ParsedDiffFileSchema>;
