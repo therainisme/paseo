@@ -138,6 +138,10 @@ export default {
       searchPaths: ["../../node_modules", "./node_modules"],
     },
     plugins: [
+      "expo-asset",
+      "expo-image",
+      "expo-localization",
+      "expo-sharing",
       "expo-router",
       [withAndroidAsyncStorageSize, 10],
       ...buildProfile.cameraPlugins,
