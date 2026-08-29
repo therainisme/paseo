@@ -5,7 +5,14 @@ import { SearchAddon } from "@xterm/addon-search";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { LigaturesAddon } from "@xterm/addon-ligatures/lib/addon-ligatures.mjs";
+// Deep import of the CJS build on purpose. The addon ships no "browser" field
+// and no "exports" map, so the bare specifier resolves to the "module" (.mjs)
+// build, and since 0.11.0-beta.252 that build inlines lru-cache@11's Node
+// dialect, which does `import { channel } from "node:diagnostics_channel"`.
+// Metro stubs that out with an empty module, so the bundle throws
+// "(0, ve.channel) is not a function" at evaluation time and never boots.
+// The CJS build inlines the browser-safe dummy metrics instead.
+import { LigaturesAddon } from "@xterm/addon-ligatures/lib/addon-ligatures.js";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import type { TerminalState } from "@getpaseo/protocol/messages";
 import {
