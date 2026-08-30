@@ -631,6 +631,38 @@ describe("appearance settings", () => {
     expect((await loadAppSettingsFromStorage(deps)).toolCallDetailLevel).toBe("detailed");
   });
 
+  it("keeps OS notification previews off when an old blob omits the field", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ theme: "dark" }),
+      }),
+    });
+
+    expect((await loadAppSettingsFromStorage(deps)).osNotificationPreviews).toBe(false);
+  });
+
+  it("falls back to redacted notifications for an unrecognized preview value", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ osNotificationPreviews: "yes" }),
+      }),
+    });
+
+    expect((await loadAppSettingsFromStorage(deps)).osNotificationPreviews).toBe(false);
+  });
+
+  it("round-trips an opt-in to notification previews", async () => {
+    const deps = makeDeps();
+
+    await saveAppSettings({
+      queryClient: new QueryClient(),
+      updates: { osNotificationPreviews: true },
+      deps,
+    });
+
+    expect((await loadAppSettingsFromStorage(deps)).osNotificationPreviews).toBe(true);
+  });
+
   it("migrates a switched-off checks row item to the hidden checks display", async () => {
     const deps = makeDeps({
       storage: createInMemoryKeyValueStorage({

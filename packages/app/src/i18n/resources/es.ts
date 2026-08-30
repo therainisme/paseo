@@ -1986,6 +1986,9 @@ export const es: TranslationResources = {
       refreshAccessibility: "Actualizar permiso de notificaciones",
       playSound: "Reproducir sonido",
       playSoundHint: "Reproduce un sonido cuando llega una notificación de escritorio",
+      osPreviews: "Mostrar el contenido del mensaje",
+      osPreviewsHint:
+        "Incluye la salida del agente en las notificaciones. Permanece visible en la pantalla de bloqueo y se sincroniza con los dispositivos vinculados.",
       test: "Probar notificación",
       testHint: "Envía una notificación con esta configuración",
       permissionRequired: "Permite el acceso a las notificaciones antes de probar",

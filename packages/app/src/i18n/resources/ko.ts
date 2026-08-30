@@ -1950,6 +1950,9 @@ export const ko: TranslationResources = {
       refreshAccessibility: "알림 권한 새로 고침",
       playSound: "소리 재생",
       playSoundHint: "데스크톱 알림이 도착하면 소리를 재생합니다",
+      osPreviews: "메시지 내용 표시",
+      osPreviewsHint:
+        "알림에 에이전트 출력을 포함합니다. 잠금 화면에도 계속 표시되고 연결된 기기로 동기화됩니다.",
       test: "알림 테스트",
       testHint: "현재 설정으로 테스트 알림을 보냅니다",
       permissionRequired: "테스트하기 전에 알림 접근을 허용하세요",

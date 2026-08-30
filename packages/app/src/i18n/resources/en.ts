@@ -1985,6 +1985,9 @@ export const en = {
       refreshAccessibility: "Refresh notification permission",
       playSound: "Play sound",
       playSoundHint: "Play a sound when a desktop notification arrives",
+      osPreviews: "Show message content",
+      osPreviewsHint:
+        "Include agent output in notifications. These stay visible on the lock screen and sync to paired devices.",
       test: "Test notification",
       testHint: "Send a notification using these settings",
       permissionRequired: "Allow notification access before testing",

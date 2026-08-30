@@ -84,6 +84,8 @@ export interface AppSettings {
   sidebarChecksDisplay: SidebarChecksDisplay;
   autoExpandReasoning: boolean;
   toolCallDetailLevel: ToolCallDetailLevel;
+  /** Include agent output in OS notification bodies. Off keeps them title-only. */
+  osNotificationPreviews: boolean;
   chatOutlineEnabled: boolean;
   vimKeybindings: boolean;
   /** Desktop-only preferences for implicit opens into the ordinary side pane. */
@@ -132,6 +134,7 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   sidebarChecksDisplay: DEFAULT_SIDEBAR_CHECKS_DISPLAY,
   autoExpandReasoning: false,
   toolCallDetailLevel: "detailed",
+  osNotificationPreviews: false,
   chatOutlineEnabled: true,
   vimKeybindings: false,
   openInSidePane: DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES,
@@ -224,6 +227,7 @@ const StoredAppSettingsSchema = z
       .or(z.literal("concise").transform(() => "overview" as const))
       .optional()
       .catch("detailed"),
+    osNotificationPreviews: z.boolean().catch(false),
     // COMPAT(compactToolCalls): migrated in v0.1.105, remove after 2027-01-12.
     compactToolCalls: z.boolean().optional().catch(undefined),
     chatOutlineEnabled: z.boolean().catch(true),

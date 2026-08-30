@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { DesktopPermissionRow } from "@/desktop/components/desktop-permission-row";
 import { useDesktopPermissions } from "@/desktop/permissions/use-desktop-permissions";
 import { useDesktopSettings } from "@/desktop/settings/desktop-settings";
+import { useAppSettings } from "@/hooks/use-settings";
 import { SettingsSection } from "@/screens/settings/settings-section";
 import { settingsStyles } from "@/styles/settings";
 
@@ -20,6 +21,7 @@ const ThemedRotateCw = withUnistyles(RotateCw, (theme) => ({
 export function DesktopNotificationsSection() {
   const { t } = useTranslation();
   const { settings, isSaving, updateSettings } = useDesktopSettings();
+  const { settings: appSettings, updateSettings: updateAppSettings } = useAppSettings();
   const {
     isDesktopApp,
     snapshot,
@@ -51,6 +53,15 @@ export function DesktopNotificationsSection() {
   const handleSendTestNotification = useCallback(() => {
     void sendTestNotification();
   }, [sendTestNotification]);
+
+  const handleOsNotificationPreviewsChange = useCallback(
+    (osNotificationPreviews: boolean) => {
+      void updateAppSettings({ osNotificationPreviews }).catch(() => {
+        // useAppSettings logs the failure; nothing else to recover from here.
+      });
+    },
+    [updateAppSettings],
+  );
 
   const isPermissionBusy = isRefreshing || requestingPermission !== null;
   const isSendingTestNotification = testNotificationState.status === "sending";
@@ -106,6 +117,18 @@ export function DesktopNotificationsSection() {
             disabled={isSaving}
             accessibilityLabel={t("settings.notifications.playSound")}
             testID="desktop-notifications-play-sound-switch"
+          />
+        </View>
+        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{t("settings.notifications.osPreviews")}</Text>
+            <Text style={settingsStyles.rowHint}>{t("settings.notifications.osPreviewsHint")}</Text>
+          </View>
+          <Switch
+            value={appSettings.osNotificationPreviews}
+            onValueChange={handleOsNotificationPreviewsChange}
+            accessibilityLabel={t("settings.notifications.osPreviews")}
+            testID="desktop-notifications-os-previews-switch"
           />
         </View>
         <View style={[settingsStyles.row, settingsStyles.rowBorder]}>

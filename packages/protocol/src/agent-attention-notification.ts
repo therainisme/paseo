@@ -211,3 +211,16 @@ export function buildAgentAttentionNotificationPayload(
     },
   };
 }
+
+/**
+ * Drop the content-derived body, keeping only the generic reason fallback.
+ *
+ * OS notifications outlive the app session: platforms mirror them to the lock
+ * screen, the notification centre history, and paired wearables. Routing data
+ * is preserved so a tap still opens the right agent
+ */
+export function redactAgentAttentionNotificationBody(
+  payload: AgentAttentionNotificationPayload,
+): AgentAttentionNotificationPayload {
+  return { ...payload, body: resolveAgentAttentionFallbackBody(payload.data.reason) };
+}

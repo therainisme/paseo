@@ -1940,6 +1940,9 @@ export const ar: TranslationResources = {
       refreshAccessibility: "تحديث إذن الإشعارات",
       playSound: "تشغيل صوت",
       playSoundHint: "تشغيل صوت عند وصول إشعار سطح مكتب",
+      osPreviews: "إظهار محتوى الرسالة",
+      osPreviewsHint:
+        "تضمين مخرجات الوكيل في الإشعارات. تظل مرئية على شاشة القفل وتتم مزامنتها مع الأجهزة المقترنة.",
       test: "اختبار الإشعار",
       testHint: "إرسال إشعار باستخدام هذه الإعدادات",
       permissionRequired: "اسمح بالوصول إلى الإشعارات قبل الاختبار",

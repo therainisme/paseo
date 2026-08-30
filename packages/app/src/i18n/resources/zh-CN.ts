@@ -1919,6 +1919,8 @@ export const zhCN: TranslationResources = {
       refreshAccessibility: "刷新通知权限",
       playSound: "播放声音",
       playSoundHint: "收到桌面通知时播放声音",
+      osPreviews: "显示消息内容",
+      osPreviewsHint: "在通知中包含 Agent 输出。这些内容会保留在锁屏上，并同步到已配对的设备。",
       test: "测试通知",
       testHint: "使用当前设置发送测试通知",
       permissionRequired: "测试前请允许访问通知",

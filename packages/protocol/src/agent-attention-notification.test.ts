@@ -3,6 +3,7 @@ import {
   buildAgentAttentionNotificationPayload,
   findLatestAssistantMessageFromTimeline,
   findLatestPermissionRequest,
+  redactAgentAttentionNotificationBody,
 } from "./agent-attention-notification.js";
 
 describe("buildAgentAttentionNotificationPayload", () => {
@@ -89,6 +90,61 @@ describe("buildAgentAttentionNotificationPayload", () => {
         reason: "error",
       },
     });
+  });
+});
+
+describe("redactAgentAttentionNotificationBody", () => {
+  it("drops the assistant preview while keeping routing data", () => {
+    const payload = buildAgentAttentionNotificationPayload({
+      reason: "finished",
+      serverId: "srv-1",
+      workspaceId: "workspace-1",
+      agentId: "agent-1",
+      assistantMessage: "Deployed with token sk-live-abcdefghijklmnop",
+    });
+
+    expect(redactAgentAttentionNotificationBody(payload)).toEqual({
+      title: "Agent finished",
+      body: "Finished working.",
+      data: {
+        serverId: "srv-1",
+        workspaceId: "workspace-1",
+        agentId: "agent-1",
+        reason: "finished",
+      },
+    });
+  });
+
+  it("drops the permission request payload, including the tool input fallback", () => {
+    const payload = buildAgentAttentionNotificationPayload({
+      reason: "permission",
+      serverId: "srv-2",
+      workspaceId: "workspace-2",
+      agentId: "agent-2",
+      permissionRequest: {
+        id: "perm-1",
+        provider: "claude",
+        name: "exec",
+        kind: "tool",
+        input: { command: "cat ~/.ssh/id_ed25519" },
+      },
+    });
+
+    expect(payload.body).toContain("id_ed25519");
+    expect(redactAgentAttentionNotificationBody(payload).body).toBe("Permission requested.");
+  });
+
+  it("leaves an already generic body unchanged and does not mutate the input", () => {
+    const payload = buildAgentAttentionNotificationPayload({
+      reason: "error",
+      serverId: "srv-3",
+      workspaceId: "workspace-3",
+      agentId: "agent-3",
+    });
+    const redacted = redactAgentAttentionNotificationBody(payload);
+
+    expect(redacted.body).toBe("Encountered an error.");
+    expect(payload).not.toBe(redacted);
   });
 });
 

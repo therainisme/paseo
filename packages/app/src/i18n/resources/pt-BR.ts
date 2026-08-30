@@ -1972,6 +1972,9 @@ export const ptBR: TranslationResources = {
       refreshAccessibility: "Atualizar permissão de notificações",
       playSound: "Reproduzir som",
       playSoundHint: "Reproduz um som quando chega uma notificação da área de trabalho",
+      osPreviews: "Mostrar o conteúdo da mensagem",
+      osPreviewsHint:
+        "Inclui a saída do agente nas notificações. Elas continuam visíveis na tela de bloqueio e são sincronizadas com os dispositivos pareados.",
       test: "Testar notificação",
       testHint: "Envia uma notificação usando estas configurações",
       permissionRequired: "Permita o acesso às notificações antes de testar",

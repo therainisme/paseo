@@ -23,6 +23,7 @@ import type { AgentAttachment, SessionOutboundMessage } from "@getpaseo/protocol
 import { parseServerInfoStatusPayload } from "@getpaseo/protocol/messages";
 import {
   buildAgentAttentionNotificationPayload,
+  redactAgentAttentionNotificationBody,
   type AgentAttentionReason,
   type AgentAttentionNotificationPayload,
   type NotificationPermissionRequest,
@@ -53,6 +54,7 @@ import { encodeImages } from "@/utils/encode-images";
 import { derivePendingPermissionKey } from "@/utils/agent-snapshots";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { useToast } from "@/contexts/toast-context";
+import { useSettings } from "@/hooks/use-settings";
 import { toErrorMessage } from "@/utils/error-messages";
 import { showProviderNoticeToast } from "@/utils/provider-notice-toast";
 import { applyCheckoutStatusUpdateFromEvent } from "@/git/checkout-status-cache";
@@ -234,6 +236,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   const queryClient = useQueryClient();
   const isConnected = useHostRuntimeIsConnected(serverId);
   const toast = useToast();
+  const osNotificationPreviews = useSettings((settings) => settings.osNotificationPreviews);
 
   // Zustand store actions
   const setIsPlayingAudio = useSessionStore((state) => state.setIsPlayingAudio);
@@ -347,13 +350,19 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         return;
       }
 
+      // OS notifications outlive the session on the lock screen and paired
+      // wearables, so agent output only reaches them when explicitly allowed
+      const osNotification = osNotificationPreviews
+        ? notification
+        : redactAgentAttentionNotificationBody(notification);
+
       void sendOsNotification({
-        title: notification.title,
-        body: notification.body,
-        data: notification.data,
+        title: osNotification.title,
+        body: osNotification.body,
+        data: osNotification.data,
       });
     },
-    [serverId],
+    [osNotificationPreviews, serverId],
   );
 
   useEffect(() => {

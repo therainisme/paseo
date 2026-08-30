@@ -1991,6 +1991,9 @@ export const fr: TranslationResources = {
       refreshAccessibility: "Actualiser l’autorisation des notifications",
       playSound: "Émettre un son",
       playSoundHint: "Émet un son lorsqu’une notification de bureau arrive",
+      osPreviews: "Afficher le contenu des messages",
+      osPreviewsHint:
+        "Inclut la sortie de l’agent dans les notifications. Celles-ci restent visibles sur l’écran verrouillé et se synchronisent avec les appareils associés.",
       test: "Tester la notification",
       testHint: "Envoie une notification avec ces réglages",
       permissionRequired: "Autorisez l’accès aux notifications avant le test",

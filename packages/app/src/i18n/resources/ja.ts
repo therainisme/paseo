@@ -1958,6 +1958,9 @@ export const ja: TranslationResources = {
       refreshAccessibility: "通知の権限を更新",
       playSound: "サウンドを再生",
       playSoundHint: "デスクトップ通知が届いたときにサウンドを再生します",
+      osPreviews: "メッセージの内容を表示",
+      osPreviewsHint:
+        "通知にエージェントの出力を含めます。ロック画面に表示され、ペアリング済みのデバイスにも同期されます。",
       test: "通知をテスト",
       testHint: "現在の設定でテスト通知を送信します",
       permissionRequired: "テストする前に通知へのアクセスを許可してください",
