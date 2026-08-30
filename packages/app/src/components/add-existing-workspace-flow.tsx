@@ -598,7 +598,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   sectionTitle: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
     textTransform: "uppercase",
   },
@@ -650,11 +650,11 @@ const styles = StyleSheet.create((theme) => ({
   },
   optionMeta: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
   },
   optionPath: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
   },
   optionCheck: {
     width: 20,
@@ -700,7 +700,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   previewMeta: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
   },
   errorText: {
     color: theme.colors.palette.red[300],
