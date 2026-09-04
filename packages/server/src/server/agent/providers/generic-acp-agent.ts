@@ -10,6 +10,7 @@ import {
   type ACPConfigFeatureOption,
   DEFAULT_ACP_CAPABILITIES,
   type ACPExtensionCommandsParser,
+  resolvePerModelThinkingOptions,
 } from "./acp-agent.js";
 import {
   buildBinaryDiagnosticRows,
@@ -32,6 +33,13 @@ export const GenericACPProviderParamsSchema = z
         terminal: z.boolean().optional(),
       })
       .optional(),
+    /**
+     * Opt in to probing each model's thinking options by switching through them on the
+     * catalog probe session. Off by default: agents that expose per-model metadata up front
+     * pay no extra round trips, and a nonconforming agent cannot stall another provider's
+     * catalog on model switching.
+     */
+    resolvePerModelThinking: z.boolean().optional(),
   })
   .passthrough();
 
@@ -75,7 +83,9 @@ export class GenericACPAgentClient extends ACPAgentClient {
       clientCapabilityMeta: options.clientCapabilityMeta,
       configFeatureOptions: options.configFeatureOptions,
       extensionCommandsParser: options.extensionCommandsParser,
-      catalogModelResolver: options.catalogModelResolver,
+      catalogModelResolver:
+        options.catalogModelResolver ??
+        (providerParams.resolvePerModelThinking ? resolvePerModelThinkingOptions : undefined),
     });
 
     this.command = options.command;

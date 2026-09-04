@@ -725,6 +725,65 @@ export function deriveModelDefinitionsFromACP(
   }));
 }
 
+/**
+ * Many agents only expose the *currently selected* model's thinking-effort levels through
+ * `configOptions` — the model list itself carries no per-model effort metadata, so
+ * {@link deriveModelDefinitionsFromACP} can only see whichever model the probe session
+ * happened to default to and every other model would inherit that one model's options.
+ *
+ * This resolver reuses the single catalog probe session to switch through each candidate
+ * model in turn and read back its real thinking options, rather than spawning a probe per
+ * model. It bails out entirely when the provider reports a single model or no thinking
+ * picker, and each model keeps its inherited options when the switch fails, so a slow or
+ * nonconforming agent degrades to the previous behaviour instead of failing the catalog.
+ */
+export async function resolvePerModelThinkingOptions({
+  connection,
+  sessionId,
+  models,
+  configOptions,
+  runRequest,
+  transformConfigOptions,
+  logger,
+  provider,
+}: ACPCatalogModelResolverContext): Promise<AgentModelDefinition[]> {
+  if (models.length <= 1) {
+    return models;
+  }
+  const modelOption = findSelectConfigOption({ configOptions, category: "model" });
+  if (!modelOption || !findSelectConfigOption({ configOptions, category: "thought_level" })) {
+    return models;
+  }
+
+  const resolved: AgentModelDefinition[] = [];
+  for (const model of models) {
+    try {
+      const response = await runRequest(() =>
+        connection.setSessionConfigOption({
+          sessionId,
+          configId: modelOption.id,
+          value: model.id,
+        }),
+      );
+      const modelConfigOptions = transformConfigOptions(response.configOptions ?? []);
+      const thinkingOptions = deriveSelectorOptions(modelConfigOptions, "thought_level");
+      resolved.push({
+        ...model,
+        thinkingOptions: thinkingOptions.length > 0 ? thinkingOptions : undefined,
+        defaultThinkingOptionId:
+          thinkingOptions.find((option) => option.isDefault)?.id ?? undefined,
+      });
+    } catch (error) {
+      logger.warn(
+        { modelId: model.id, error: toDiagnosticErrorMessage(error) },
+        `${provider} catalog probe could not resolve thinking options for model "${model.id}"; keeping its default options`,
+      );
+      resolved.push(model);
+    }
+  }
+  return resolved;
+}
+
 export function deriveFeaturesFromACP(
   configOptions: SessionConfigOption[] | null | undefined,
   featureOptions: ACPConfigFeatureOption[],
