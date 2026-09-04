@@ -733,9 +733,16 @@ export function deriveModelDefinitionsFromACP(
  *
  * This resolver reuses the single catalog probe session to switch through each candidate
  * model in turn and read back its real thinking options, rather than spawning a probe per
- * model. It bails out entirely when the provider reports a single model or no thinking
- * picker, and each model keeps its inherited options when the switch fails, so a slow or
- * nonconforming agent degrades to the previous behaviour instead of failing the catalog.
+ * model.
+ *
+ * It is safe as the default for every ACP provider, because the cases where the extra
+ * round trips are pointless or risky are already covered elsewhere:
+ * - It bails out entirely when the provider reports a single model or no thinking picker,
+ *   so agents with nothing to disambiguate pay no round trips at all.
+ * - Each model keeps its inherited options when the switch fails, so one misbehaving model
+ *   degrades to the previous behaviour instead of failing the whole catalog.
+ * - `fetchCatalog` runs inside `runProviderRefreshWithDeadline`, so a slow agent trips the
+ *   refresh deadline and aborts rather than stalling the snapshot indefinitely.
  */
 export async function resolvePerModelThinkingOptions({
   connection,

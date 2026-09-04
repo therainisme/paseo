@@ -1,6 +1,5 @@
 import type { Logger } from "pino";
 
-import { resolvePerModelThinkingOptions } from "./acp-agent.js";
 import { GenericACPAgentClient } from "./generic-acp-agent.js";
 
 interface KimiACPAgentClientOptions {
@@ -14,10 +13,9 @@ interface KimiACPAgentClientOptions {
 
 /**
  * Kimi reports different thinking-effort levels per model (a boolean on/off toggle for one
- * model, a multi-level select for another), so it always needs the per-model catalog probe
- * from {@link resolvePerModelThinkingOptions}. Other ACP providers opt in through their
- * provider params, which keeps the extra `setSessionConfigOption` round trips away from
- * agents that expose per-model metadata up front.
+ * model, a multi-level select for another). The generic ACP client now runs that per-model
+ * catalog probe by default, so Kimi needs nothing beyond the shared client — it only keeps
+ * its own class so it stays addressable as a distinct provider id in the registry.
  */
 export class KimiACPAgentClient extends GenericACPAgentClient {
   constructor(options: KimiACPAgentClientOptions) {
@@ -28,7 +26,6 @@ export class KimiACPAgentClient extends GenericACPAgentClient {
       providerId: options.providerId,
       label: options.label,
       providerParams: options.providerParams,
-      catalogModelResolver: resolvePerModelThinkingOptions,
     });
   }
 }
