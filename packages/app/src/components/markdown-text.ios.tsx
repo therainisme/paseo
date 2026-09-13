@@ -74,11 +74,16 @@ export function MarkdownTextSpan({
 
 interface MarkdownParagraphViewProps {
   paragraphStyle: ViewStyle;
+  isLastChild?: boolean;
   containsImage?: boolean;
   children: ReactNode;
 }
 
 const MARKDOWN_PARAGRAPH_RESET: ViewStyle = {};
+
+// Only the assistant message stream trims the trailing paragraph margin; the
+// shared renderer keeps the stylesheet value everywhere else.
+const PARAGRAPH_LAST_CHILD: ViewStyle = { marginBottom: 0 };
 
 // iOS-only: paragraph wraps in UITextView so the entire paragraph is one
 // native text view. That's what unlocks cross-inline drag selection — handles
@@ -88,6 +93,7 @@ const MARKDOWN_PARAGRAPH_RESET: ViewStyle = {};
 // flow through unchanged.
 export function MarkdownParagraphView({
   paragraphStyle,
+  isLastChild = false,
   containsImage = false,
   children,
 }: MarkdownParagraphViewProps) {
@@ -95,11 +101,14 @@ export function MarkdownParagraphView({
     () =>
       resolvePlainMarkdownTextStyle([
         paragraphStyle,
-        MARKDOWN_PARAGRAPH_RESET,
+        isLastChild ? PARAGRAPH_LAST_CHILD : MARKDOWN_PARAGRAPH_RESET,
       ] as StyleProp<TextStyle>),
-    [paragraphStyle],
+    [paragraphStyle, isLastChild],
   );
-  const viewStyle = useMemo(() => [paragraphStyle, MARKDOWN_PARAGRAPH_RESET], [paragraphStyle]);
+  const viewStyle = useMemo(
+    () => [paragraphStyle, isLastChild ? PARAGRAPH_LAST_CHILD : MARKDOWN_PARAGRAPH_RESET],
+    [paragraphStyle, isLastChild],
+  );
 
   if (containsImage) {
     return <View style={viewStyle}>{children}</View>;

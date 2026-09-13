@@ -758,7 +758,7 @@ interface AssistantMessageProps {
 
 export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
   container: {
-    paddingVertical: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
     ...(isWeb ? { userSelect: "text" as const } : {}),
   },
   containerCompactTop: {
@@ -1598,9 +1598,9 @@ export const AssistantMessage = memo(function AssistantMessage({
           {children}
         </View>
       ),
-      hr: (node: ASTNode, _children: ReactNode[], _parent: ASTNode[], styles: MarkdownStyles) => (
-        <View key={node.key} style={styles._VIEW_SAFE_hr} dataSet={markdownCopyDataSet.hr} />
-      ),
+      // Assistant messages drop thematic breaks instead of drawing a rule. The
+      // library default would render one, so this rule has to stay and render null.
+      hr: () => null,
       table: (node: ASTNode, children: ReactNode[], _parent: ASTNode[], styles: MarkdownStyles) => (
         <View key={node.key} style={styles._VIEW_SAFE_table} dataSet={markdownCopyDataSet.table}>
           {children}
@@ -1900,12 +1900,13 @@ export const AssistantMessage = memo(function AssistantMessage({
       paragraph: (
         node: ASTNode,
         children: ReactNode[],
-        _parent: ASTNode[],
+        parent: ASTNode[],
         styles: MarkdownStyles,
       ) => (
         <MarkdownParagraphView
           key={node.key}
           paragraphStyle={styles.paragraph}
+          isLastChild={parent[0]?.children?.at(-1)?.key === node.key}
           containsImage={markdownNodeContainsType(node, "image")}
         >
           {children}

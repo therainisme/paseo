@@ -41,7 +41,18 @@ export function splitMarkdownBlocks(text: string): string[] {
     blocks.push(currentLines.join("\n"));
   }
 
-  return blocks.filter((block) => block.length > 0);
+  return blocks.filter((block) => block.length > 0 && !isThematicBreakOnlyBlock(block));
+}
+
+// A block made only of thematic breaks renders nothing once the hr rule is
+// dropped, but would still claim a block margin, so drop the whole block.
+function isThematicBreakOnlyBlock(block: string): boolean {
+  const lines = block.split("\n").filter((line) => line.trim().length > 0);
+  return lines.length > 0 && lines.every(isThematicBreakLine);
+}
+
+function isThematicBreakLine(line: string): boolean {
+  return /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/.test(line);
 }
 
 function getStructuralBlankLines(text: string, lines: string[]): Set<number> {

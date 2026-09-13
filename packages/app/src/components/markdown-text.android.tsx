@@ -37,11 +37,16 @@ export function MarkdownTextSpan({
 
 interface MarkdownParagraphViewProps {
   paragraphStyle: ViewStyle;
+  isLastChild?: boolean;
   containsImage?: boolean;
   children: ReactNode;
 }
 
 const MARKDOWN_PARAGRAPH_RESET: ViewStyle = {};
+
+// Only the assistant message stream trims the trailing paragraph margin; the
+// shared renderer keeps the stylesheet value everywhere else.
+const PARAGRAPH_LAST_CHILD: ViewStyle = { marginBottom: 0 };
 
 // Paragraph stays a <View>, not a <Text>, for layout fidelity. RN Android's
 // text engine *does* accept inline View children (TextInlineViewPlaceholderSpan
@@ -50,7 +55,14 @@ const MARKDOWN_PARAGRAPH_RESET: ViewStyle = {};
 // images) into one-character placeholders, which destroys image row layout.
 // <View> preserves the original block layout; the trade-off is no cross-span
 // selection on Android (a UITextView-style trick has no Android equivalent).
-export function MarkdownParagraphView({ paragraphStyle, children }: MarkdownParagraphViewProps) {
-  const style = useMemo(() => [paragraphStyle, MARKDOWN_PARAGRAPH_RESET], [paragraphStyle]);
+export function MarkdownParagraphView({
+  paragraphStyle,
+  isLastChild = false,
+  children,
+}: MarkdownParagraphViewProps) {
+  const style = useMemo(
+    () => [paragraphStyle, isLastChild ? PARAGRAPH_LAST_CHILD : MARKDOWN_PARAGRAPH_RESET],
+    [paragraphStyle, isLastChild],
+  );
   return <View style={style}>{children}</View>;
 }

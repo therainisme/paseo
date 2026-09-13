@@ -54,17 +54,29 @@ export function MarkdownTextSpan({
 
 interface MarkdownParagraphViewProps {
   paragraphStyle: ViewStyle;
+  isLastChild?: boolean;
   containsImage?: boolean;
   children: ReactNode;
 }
 
 const MARKDOWN_PARAGRAPH_RESET: ViewStyle = {};
 
+// Only the assistant message stream trims the trailing paragraph margin; the
+// shared renderer keeps the stylesheet value everywhere else.
+const PARAGRAPH_LAST_CHILD: ViewStyle = { marginBottom: 0 };
+
 // Same shape as Android — paragraph is a View so block-level children (images)
 // keep their natural layout. Web text selection already spans nested inline
 // elements via CSS user-select, so no UITextView equivalent is needed.
-export function MarkdownParagraphView({ paragraphStyle, children }: MarkdownParagraphViewProps) {
-  const style = useMemo(() => [paragraphStyle, MARKDOWN_PARAGRAPH_RESET], [paragraphStyle]);
+export function MarkdownParagraphView({
+  paragraphStyle,
+  isLastChild = false,
+  children,
+}: MarkdownParagraphViewProps) {
+  const style = useMemo(
+    () => [paragraphStyle, isLastChild ? PARAGRAPH_LAST_CHILD : MARKDOWN_PARAGRAPH_RESET],
+    [paragraphStyle, isLastChild],
+  );
   return (
     <View style={style} dataSet={markdownCopyDataSet.p}>
       {children}

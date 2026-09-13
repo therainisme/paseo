@@ -81,4 +81,31 @@ describe("splitMarkdownBlocks", () => {
       "Second paragraph",
     ]);
   });
+
+  it("drops a block that only holds a thematic break", () => {
+    expect(splitMarkdownBlocks("Before\n\n---\n\nAfter")).toEqual(["Before", "After"]);
+    expect(splitMarkdownBlocks("Before\n\n***\n\nAfter")).toEqual(["Before", "After"]);
+    expect(splitMarkdownBlocks("Before\n\n___\n\nAfter")).toEqual(["Before", "After"]);
+    expect(splitMarkdownBlocks("Before\n\n- - -\n\nAfter")).toEqual(["Before", "After"]);
+  });
+
+  it("drops a block that only holds repeated thematic breaks", () => {
+    expect(splitMarkdownBlocks("Before\n\n---\n\n---\n\nAfter")).toEqual(["Before", "After"]);
+  });
+
+  it("drops a trailing thematic break after the last content block", () => {
+    expect(splitMarkdownBlocks("Before\n\n---\n\nMiddle\n\n***")).toEqual(["Before", "Middle"]);
+  });
+
+  it("keeps a block that mixes a thematic break with other content", () => {
+    expect(splitMarkdownBlocks("---\nMiddle\n\nAfter")).toEqual(["---\nMiddle", "After"]);
+  });
+
+  it("keeps a setext heading underline, which is not a thematic break", () => {
+    expect(splitMarkdownBlocks("Title\n---\n\nBody")).toEqual(["Title\n---", "Body"]);
+  });
+
+  it("keeps a thematic break that sits inside a list", () => {
+    expect(splitMarkdownBlocks("- item\n\n  ---\n\nAfter")).toEqual(["- item\n\n  ---", "After"]);
+  });
 });
