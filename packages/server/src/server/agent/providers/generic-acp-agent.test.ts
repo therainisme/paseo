@@ -6,18 +6,8 @@ const mockState = vi.hoisted(() => ({
   superConstructorOptions: [] as unknown[],
 }));
 
-vi.mock("./acp-agent.js", () => ({
-  DEFAULT_ACP_CAPABILITIES: {
-    supportsStreaming: true,
-    supportsSessionPersistence: true,
-    supportsDynamicModes: true,
-    supportsMcpServers: true,
-    supportsReasoningStream: true,
-    supportsToolInvocations: true,
-    supportsRewindConversation: false,
-    supportsRewindFiles: false,
-    supportsRewindBoth: false,
-  },
+vi.mock("./acp-agent.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./acp-agent.js")>()),
   ACPAgentClient: class ACPAgentClient {
     readonly provider: string;
 
@@ -51,6 +41,14 @@ describe("GenericACPAgentClient", () => {
           },
         },
         defaultCommand: ["hermes", "acp"],
+        waitForInitialCommands: undefined,
+        initialCommandsWaitTimeoutMs: undefined,
+        now: undefined,
+        catalogModelResolver: expect.any(Function),
+        clientCapabilities: undefined,
+        clientCapabilityMeta: undefined,
+        configFeatureOptions: undefined,
+        extensionCommandsParser: undefined,
         capabilities: {
           supportsStreaming: true,
           supportsSessionPersistence: true,
@@ -58,6 +56,7 @@ describe("GenericACPAgentClient", () => {
           supportsMcpServers: true,
           supportsReasoningStream: true,
           supportsToolInvocations: true,
+          supportsSessionListing: true,
           supportsRewindConversation: false,
           supportsRewindFiles: false,
           supportsRewindBoth: false,

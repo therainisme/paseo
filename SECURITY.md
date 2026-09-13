@@ -56,6 +56,10 @@ Mobile builds use Expo Push Service, which forwards notifications through Apple 
 
 Push notification taps open Paseo without a task deep link. Detailed notifications remain on the trusted client connection and do not pass through the mobile push provider.
 
+## Cross-repository checkout setup gate
+
+When Paseo checks out a change request from a different repository, it does not run that workspace's `paseo.json` setup, automatic terminals, named scripts, or teardown until you explicitly run setup for that workspace. The decision lasts for the workspace and does not re-prompt after new commits. Same-repository changes, ordinary branches, local workspaces, agent launches, terminals, explicit shell commands, and metadata-generation instructions are outside this gate.
+
 If you expose the daemon beyond loopback, such as by binding to `0.0.0.0`, forwarding it through a tunnel or reverse proxy, or publishing it from a Docker container, you are responsible for restricting and securing that access. Setting a password is strongly recommended in that case.
 
 In Docker, the official image runs the daemon and agents as the non-root
