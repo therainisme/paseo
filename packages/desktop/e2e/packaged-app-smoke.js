@@ -157,6 +157,31 @@ function configureIsolatedDaemonHome(home, listen) {
   );
 }
 
+// The desktop ships with built-in daemon management off, so the renderer only
+// starts its daemon once the setting is on. Seed the same document the settings
+// store writes so the smoke still exercises the real startup bootstrap.
+function configureIsolatedUserData(userData) {
+  fs.writeFileSync(
+    path.join(userData, "desktop-settings.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        settings: {
+          releaseChannel: "stable",
+          notifications: { playSound: true },
+          daemon: { manageBuiltInDaemon: true, keepRunningAfterQuit: true },
+        },
+        migrations: {
+          legacyRendererSettingsImported: true,
+          daemonStopOnQuitDefaultApplied: true,
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
 function reserveLocalTcpPort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -855,6 +880,7 @@ async function smokePackagedDesktopApp({
   }
   const listen = `127.0.0.1:${daemonPort}`;
   configureIsolatedDaemonHome(daemonHome, listen);
+  configureIsolatedUserData(userData);
   const env = createIsolatedDesktopEnv({
     home: daemonHome,
     listen,

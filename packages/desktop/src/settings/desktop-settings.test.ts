@@ -83,7 +83,7 @@ describe("desktop-settings", () => {
       releaseChannel: "stable",
       notifications: { playSound: true },
       daemon: {
-        manageBuiltInDaemon: true,
+        manageBuiltInDaemon: false,
         keepRunningAfterQuit: false,
       },
     });
@@ -105,7 +105,7 @@ describe("desktop-settings", () => {
       releaseChannel: "beta",
       notifications: { playSound: true },
       daemon: {
-        manageBuiltInDaemon: true,
+        manageBuiltInDaemon: false,
         keepRunningAfterQuit: false,
       },
     });

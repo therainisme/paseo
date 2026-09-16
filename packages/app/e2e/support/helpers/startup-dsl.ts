@@ -228,6 +228,15 @@ async function installPendingDesktopBridge(page: Page): Promise<void> {
         if (command === "desktop_daemon_logs") {
           return { logPath: "", contents: "" };
         }
+        // Built-in daemon management ships off, so the pending-startup scenario
+        // has to opt in for the renderer to request a daemon start at all.
+        if (command === "get_desktop_settings") {
+          return {
+            releaseChannel: "stable",
+            notifications: { playSound: true },
+            daemon: { manageBuiltInDaemon: true, keepRunningAfterQuit: true },
+          };
+        }
         return null;
       },
       getPendingOpenProject: async () => null,
