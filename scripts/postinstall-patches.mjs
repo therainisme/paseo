@@ -12,15 +12,16 @@ const patchedPackages = [
     nodeModulesPath: "node_modules/react-native-markdown-display",
     patchPrefix: "react-native-markdown-display+",
   },
-  {
-    nodeModulesPath: "node_modules/react-native",
-    patchPrefix: "react-native+",
-  },
   // Remove after react-native-unistyles ships
   // https://github.com/jpudysz/react-native-unistyles/pull/1203.
   {
     nodeModulesPath: "node_modules/react-native-unistyles",
     patchPrefix: "react-native-unistyles+",
+  },
+  {
+    nodeModulesPath: "packages/app/node_modules/react-native-unistyles",
+    patchPrefix: "react-native-unistyles+",
+    cwd: "packages/app",
   },
   {
     nodeModulesPath: "node_modules/react-native-draggable-flatlist",
@@ -37,6 +38,10 @@ const patchedPackages = [
   {
     nodeModulesPath: "node_modules/@mattermost/react-native-paste-input",
     patchPrefix: "@mattermost+react-native-paste-input+",
+  },
+  {
+    nodeModulesPath: "node_modules/@opencode-ai/sdk",
+    patchPrefix: "@opencode-ai+sdk+",
   },
   {
     nodeModulesPath: "packages/server/node_modules/@opencode-ai/sdk",
@@ -86,7 +91,7 @@ for (const [cwd, files] of patchFilesByCwd) {
 
   let result;
   try {
-    result = spawnSync(cmd, ["--patch-dir", relative(cwd, tempPatchDir)], {
+    result = spawnSync(cmd, ["--error-on-fail", "--patch-dir", relative(cwd, tempPatchDir)], {
       cwd,
       shell: isWindows,
       stdio: "inherit",

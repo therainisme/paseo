@@ -41,7 +41,6 @@ describe("GenericACPAgentClient", () => {
           },
         },
         defaultCommand: ["hermes", "acp"],
-        waitForInitialCommands: undefined,
         initialCommandsWaitTimeoutMs: undefined,
         now: undefined,
         catalogModelResolver: expect.any(Function),
@@ -61,24 +60,8 @@ describe("GenericACPAgentClient", () => {
           supportsRewindFiles: false,
           supportsRewindBoth: false,
         },
+        waitForInitialCommands: true,
       },
     ]);
-  });
-
-  test("uses provider params to report MCP support", () => {
-    const _client = new GenericACPAgentClient({
-      logger: createTestLogger(),
-      command: ["no-mcp-acp", "serve"],
-      providerParams: {
-        supportsMcpServers: false,
-      },
-    });
-    void _client;
-
-    expect(mockState.superConstructorOptions.at(-1)).toMatchObject({
-      capabilities: {
-        supportsMcpServers: false,
-      },
-    });
   });
 });

@@ -17,6 +17,7 @@ permissions:
 env:
   ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
   ONNXRUNTIME_NODE_INSTALL: skip
+  SKIP_SKIA_DOWNLOAD: "1"
 
 jobs:
   maintenance:

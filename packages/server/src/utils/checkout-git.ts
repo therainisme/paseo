@@ -636,8 +636,16 @@ function normalizeNumstatPath(pathField: string): string {
   return pathField;
 }
 
+// Parsed patches need a stable wire format regardless of terminal presentation settings.
+const GIT_PATCH_FORMAT_ARGS = ["--no-ext-diff", "--no-color", "--src-prefix=a/", "--dst-prefix=b/"];
+
 function buildGitDiffArgs(args: { ignoreWhitespace?: boolean; extra: string[] }): string[] {
-  return ["diff", ...(args.ignoreWhitespace ? ["-w"] : []), ...args.extra];
+  return [
+    "diff",
+    ...GIT_PATCH_FORMAT_ARGS,
+    ...(args.ignoreWhitespace ? ["-w"] : []),
+    ...args.extra,
+  ];
 }
 
 const TRACKED_DIFF_NUMSTAT_MAX_BYTES = 2 * 1024 * 1024; // 2MB
@@ -713,12 +721,19 @@ async function getTrackedDiffTextForPath(input: {
   cwd: string;
   refsForDiff: CheckoutDiffRefs;
   path: string;
+  oldPath?: string;
   ignoreWhitespace: boolean;
 }): Promise<{ path: string; text: string; truncated: boolean }> {
+  const paths = input.oldPath ? [input.oldPath, input.path] : [input.path];
   const result = await runGitCommand(
     buildGitDiffArgs({
       ignoreWhitespace: input.ignoreWhitespace,
-      extra: [...getCheckoutDiffRefArgs(input.refsForDiff), "--", `:(literal)${input.path}`],
+      extra: [
+        ...(input.oldPath ? ["--diff-filter=RC"] : []),
+        ...getCheckoutDiffRefArgs(input.refsForDiff),
+        "--",
+        ...paths.map((path) => `:(literal)${path}`),
+      ],
     }),
     {
       cwd: input.cwd,
@@ -727,9 +742,22 @@ async function getTrackedDiffTextForPath(input: {
     },
   );
 
+  // A source path can participate in another rename/copy in the same request.
+  // Return only the requested destination; the filter keeps source edits out of its budget.
+  let text = result.stdout;
+  if (input.oldPath && !result.truncated) {
+    text = result.stdout
+      .split(/(?=^diff --git )/m)
+      .filter((section) => {
+        const hunkStart = section.indexOf("\n@@ ");
+        const header = hunkStart < 0 ? section : section.slice(0, hunkStart);
+        return parseDiff(header)[0]?.path === input.path;
+      })
+      .join("");
+  }
   return {
     path: input.path,
-    text: result.stdout,
+    text,
     truncated: result.truncated,
   };
 }
@@ -1395,6 +1423,23 @@ async function getGitConfigValue(
   }
 }
 
+async function resolveGitRemoteUrl({
+  cwd,
+  remote,
+  context,
+}: {
+  cwd: string;
+  remote: string;
+  context?: CheckoutContext;
+}): Promise<string | null> {
+  const configuredUrl = await getGitConfigValue(cwd, `remote.${remote}.url`, context);
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+  // Branch remote settings accept repository URLs as well as configured remote names.
+  return parseGitRemoteLocation(remote) ? remote : null;
+}
+
 async function getGitRemotePushUrl(
   cwd: string,
   remoteName: string,
@@ -1459,7 +1504,7 @@ async function resolvePullRequestStatusLookupTarget(
   }
 
   const [branchRemoteUrl, originRemoteUrl, resolvedBaseRef] = await Promise.all([
-    branchRemoteName ? getGitConfigValue(cwd, `remote.${branchRemoteName}.url`, context) : null,
+    branchRemoteName ? resolveGitRemoteUrl({ cwd, remote: branchRemoteName, context }) : null,
     getGitConfigValue(cwd, "remote.origin.url", context),
     getResolvedBaseRefForCwd(cwd, context),
   ]);
@@ -1569,11 +1614,15 @@ export async function resolveRepositoryDefaultBranch(
         );
         return localName;
       } catch {
+        await getRunGitCommand(context)(["show-ref", "--verify", "--quiet", ref], {
+          cwd: repoRoot,
+          envOverlay: READ_ONLY_GIT_ENV,
+        });
         return remoteShort;
       }
     }
   } catch {
-    // ignore
+    // A stale origin/HEAD must fall through to the available local branches.
   }
 
   const { stdout } = await getRunGitCommand(context)(["branch", "--format=%(refname:short)"], {
@@ -1976,7 +2025,7 @@ async function resolvePullRequestLookupTargetFromPushConfig(
 
   const [pushRefspec, pushRemoteUrl, originRemoteUrl, resolvedBaseRef] = await Promise.all([
     getGitConfigValue(cwd, `remote.${pushRemoteName}.push`, context),
-    getGitConfigValue(cwd, `remote.${pushRemoteName}.url`, context),
+    resolveGitRemoteUrl({ cwd, remote: pushRemoteName, context }),
     knownOriginRemoteUrl === null ? getGitConfigValue(cwd, "remote.origin.url", context) : null,
     knownResolvedBaseRef === null ? getResolvedBaseRefForCwd(cwd, context) : null,
   ]);
@@ -2084,7 +2133,7 @@ export async function getCheckoutSnapshotFacts(
         getGitConfigValue(cwd, `branch.${inspected.currentBranch}.merge`, context),
         branchRemoteName === "origin"
           ? inspected.remoteUrl
-          : getGitConfigValue(cwd, `remote.${branchRemoteName}.url`, context),
+          : resolveGitRemoteUrl({ cwd, remote: branchRemoteName, context }),
       ]);
     }
   }
@@ -2640,7 +2689,7 @@ export async function getCommitFileDiff({
   path: string;
 }): Promise<ParsedDiffFile | null> {
   const { stdout } = await runGitCommand(
-    ["show", sha, "--format=", "--diff-merges=first-parent", "--", path],
+    ["show", sha, "--format=", "--diff-merges=first-parent", ...GIT_PATCH_FORMAT_ARGS, "--", path],
     {
       cwd,
       envOverlay: READ_ONLY_GIT_ENV,
@@ -3311,26 +3360,29 @@ async function processTrackedChanges(
 
   let trackedDiffText = "";
   let trackedDiffBytes = 0;
-  const renamedPaths = new Set(
-    trackedChanges.filter((change) => change.oldPath).map((change) => change.path),
+  const oldPathByPath = new Map(
+    trackedChanges
+      .filter((change) => change.oldPath)
+      .map((change) => [change.path, change.oldPath]),
   );
   for (let start = 0; start < trackedDiffPaths.length; start += TRACKED_DIFF_BATCH_SIZE) {
     const paths = trackedDiffPaths.slice(start, start + TRACKED_DIFF_BATCH_SIZE);
-    // Keep rename/copy path filtering identical to the existing per-file command.
+    // Rename/copy detection needs both paths.
     const ordinary = await getTrackedDiffTexts({
       cwd,
       refsForDiff,
-      paths: paths.filter((path) => !renamedPaths.has(path)),
+      paths: paths.filter((path) => !oldPathByPath.has(path)),
       ignoreWhitespace,
     });
     const renamed = await Promise.all(
       paths
-        .filter((path) => renamedPaths.has(path))
+        .filter((path) => oldPathByPath.has(path))
         .map((path) =>
           getTrackedDiffTextForPath({
             cwd,
             refsForDiff,
             path,
+            oldPath: oldPathByPath.get(path),
             ignoreWhitespace,
           }),
         ),
