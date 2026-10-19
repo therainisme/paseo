@@ -19,6 +19,7 @@ import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-over
 import {
   buildKeyboardShortcutHelpSections,
   getBindingIdForAction,
+  normalizeCapturedShortcutCombo,
   getDefaultKeysForAction,
   resolveShortcutKeysForAction,
   type KeyboardShortcutHelpRow,
@@ -377,8 +378,7 @@ export function KeyboardShortcutsSection() {
       event.preventDefault();
       event.stopPropagation();
 
-      const key = event.key ?? "";
-      if (key === "Backspace") {
+      if (event.code === "Backspace" && heldModifiersFromEvent(event) === null) {
         setCapturedCombos((current) => (current.length > 0 ? current.slice(0, -1) : current));
         return;
       }
@@ -390,7 +390,8 @@ export function KeyboardShortcutsSection() {
       }
 
       setHeldModifiers(null);
-      setCapturedCombos((current) => [...current, comboString]);
+      const capturedCombo = normalizeCapturedShortcutCombo(capturingBindingId!, comboString);
+      setCapturedCombos((current) => [...current, capturedCombo]);
     }
 
     window.addEventListener("keydown", handleKeyDown, true);

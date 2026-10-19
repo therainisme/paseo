@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import { Text, View, type PressableStateCallbackType } from "react-native";
 import { useFetchQuery } from "@/data/query";
 import { Check, ChevronDown, FolderGit2, GitBranch, HardDrive } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -10,6 +10,7 @@ import { HostStatusDot } from "@/components/host-status-dot";
 import { HostPicker } from "@/components/hosts/host-picker";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { useToast } from "@/contexts/toast-context";
 import {
   buildExistingWorkspacePathOptions,
@@ -126,7 +127,7 @@ function ExistingWorkspaceRow({
   const handlePress = useCallback(() => onSelect(option), [onSelect, option]);
 
   return (
-    <Pressable
+    <PressHighlight
       accessibilityRole="button"
       accessibilityState={accessibilityState}
       disabled={disabled}
@@ -155,7 +156,7 @@ function ExistingWorkspaceRow({
       <View style={styles.optionCheck}>
         {selected ? <ThemedCheck size={16} uniProps={foregroundMapping} /> : null}
       </View>
-    </Pressable>
+    </PressHighlight>
   );
 }
 
@@ -206,7 +207,7 @@ function HostControl({
       title={t("existingWorkspace.host")}
       desktopMinWidth={240}
     >
-      <Pressable
+      <PressHighlight
         ref={anchorRef}
         accessibilityRole="button"
         accessibilityLabel={t("existingWorkspace.host")}
@@ -222,7 +223,7 @@ function HostControl({
           {selectedLabel}
         </Text>
         <ThemedChevronDown size={14} uniProps={foregroundMutedMapping} />
-      </Pressable>
+      </PressHighlight>
     </HostPicker>
   );
 }

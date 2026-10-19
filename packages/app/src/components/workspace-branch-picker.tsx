@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import { Text, View, type PressableStateCallbackType } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, GitBranch } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { useToast } from "@/contexts/toast-context";
 import { useBranchSwitcher } from "@/hooks/use-branch-switcher";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
@@ -42,7 +43,7 @@ function BranchRow({
   const accessibilityState = useMemo(() => ({ selected }), [selected]);
   const handlePress = useCallback(() => onSelect(branch), [branch, onSelect]);
   return (
-    <Pressable
+    <PressHighlight
       accessibilityRole="button"
       accessibilityState={accessibilityState}
       onPress={handlePress}
@@ -58,7 +59,7 @@ function BranchRow({
       <View style={styles.checkSlot}>
         {selected ? <ThemedCheck size={16} uniProps={foregroundMapping} /> : null}
       </View>
-    </Pressable>
+    </PressHighlight>
   );
 }
 
