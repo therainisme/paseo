@@ -32,6 +32,13 @@ import type { PiUsagePollScheduler } from "./usage-poller.js";
 const ONE_BY_ONE_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
+function describeThinkingOption(option: AgentSelectOption): { id: string; isDefault: boolean } {
+  return {
+    id: option.id,
+    isDefault: option.isDefault ?? false,
+  };
+}
+
 const RESTRICTED_THINKING_MODEL: PiModel = {
   provider: "kimi-coding",
   id: "kimi-k3",
@@ -2828,6 +2835,95 @@ describe("PiRpcAgentClient", () => {
       modes: [],
     });
     expect(pi.recordedLaunches[0]).toMatchObject({ cwd: "/workspace/with-extension" });
+  });
+
+  test("uses each Pi model's configured thinking levels", async () => {
+    const pi = new FakePi();
+    const client = createClient(pi);
+    const catalogPromise = client.fetchCatalog({
+      scope: "workspace",
+      cwd: "/workspace/thinking-levels",
+      force: false,
+    });
+    pi.latestSession().models = [
+      {
+        provider: "custom",
+        id: "standard-reasoning",
+        reasoning: true,
+      },
+      {
+        provider: "custom",
+        id: "max-only",
+        reasoning: true,
+        thinkingLevelMap: {
+          off: null,
+          minimal: null,
+          low: null,
+          medium: null,
+          high: null,
+          xhigh: null,
+          max: "max",
+        },
+      },
+      {
+        provider: "custom",
+        id: "sparse-reasoning",
+        reasoning: true,
+        thinkingLevelMap: {
+          minimal: null,
+          low: null,
+          medium: null,
+          high: "high",
+          xhigh: null,
+          max: "max",
+        },
+      },
+      {
+        provider: "custom",
+        id: "no-reasoning",
+        reasoning: false,
+      },
+    ];
+
+    const catalog = await catalogPromise;
+    expect(
+      catalog.models.map((model) => ({
+        id: model.id,
+        thinkingOptions: model.thinkingOptions?.map(describeThinkingOption),
+        defaultThinkingOptionId: model.defaultThinkingOptionId,
+      })),
+    ).toEqual([
+      {
+        id: "custom/standard-reasoning",
+        thinkingOptions: [
+          { id: "off", isDefault: false },
+          { id: "minimal", isDefault: false },
+          { id: "low", isDefault: false },
+          { id: "medium", isDefault: true },
+          { id: "high", isDefault: false },
+        ],
+        defaultThinkingOptionId: "medium",
+      },
+      {
+        id: "custom/max-only",
+        thinkingOptions: [{ id: "max", isDefault: true }],
+        defaultThinkingOptionId: "max",
+      },
+      {
+        id: "custom/sparse-reasoning",
+        thinkingOptions: [
+          { id: "off", isDefault: false },
+          { id: "high", isDefault: true },
+          { id: "max", isDefault: false },
+        ],
+        defaultThinkingOptionId: "high",
+      },
+      {
+        id: "custom/no-reasoning",
+        thinkingOptions: undefined,
+        defaultThinkingOptionId: undefined,
+      },
+    ]);
   });
 
   test("marks the model Pi resolves from its own settings as the catalog default", async () => {
